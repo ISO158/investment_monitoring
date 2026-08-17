@@ -34,3 +34,5 @@ Thumbs.db
 *.egg-info/
 dist/
 build/
+
+tests/
