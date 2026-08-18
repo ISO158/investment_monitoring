@@ -22,23 +22,52 @@ INPUT_PATH = DATA_DIR / "historico_operacoes.csv"
 OUTPUT_PATH = DATA_DIR / "carteira_atualizada.csv"
 
 # =========================================================================== #
+# SIDEBAR: Barra com dados para input na lateral
+# =========================================================================== #
+
+st.sidebar.header("Cadastrar Operação")
+
+# A escolha da Classe fica FORA do form para a tela poder se adaptar instantaneamente
+classe_ativo = st.sidebar.radio(
+    "Classe do Investimento", 
+    ["Renda Variável (Ações/FIIs)", "Renda Fixa"]
+)
 
 with st.sidebar.form("nova_operacao"):
-    st.header("Cadastrar Operação")
-    data = st.date_input("Data")
-    ticker = st.text_input("Ticker (ex: ITUB4)", max_chars=6).upper()
-    operacao = st.selectbox("Operação", ["Compra", "Venda"])
-    qtd = st.number_input("Quantidade", min_value=1)
-    preco = st.number_input("Preço Unitário (R$)", min_value=0.01)
-    taxas = st.number_input("Taxas (R$)", min_value=0.0)
+    data = st.date_input("Data da Operação")
     
+    # Dicionário base para salvar no CSV (já com campos vazios preparados)
+    dados_operacao = {
+        'Data': data, 'Classe': classe_ativo, 'Ticker': None, 'Operacao': None,
+        'Quantidade': 0, 'Preco_Unitario': 0.0, 'Taxas': 0.0,
+        'Nome_RF': None, 'Tipo_RF': None, 'Indexador_RF': None, 
+        'Taxa_RF': 0.0, 'Vencimento_RF': None
+    }
+
+    # --- CAMPOS PARA RENDA VARIÁVEL ---
+    if classe_ativo == "Renda Variável (Ações/FIIs)":
+        dados_operacao['Ticker'] = st.text_input("Ticker (ex: ITUB4, KNRI11)", max_chars=6).upper()
+        dados_operacao['Operacao'] = st.selectbox("Operação", ["Compra", "Venda"])
+        dados_operacao['Quantidade'] = st.number_input("Quantidade", min_value=1)
+        dados_operacao['Preco_Unitario'] = st.number_input("Preço Unitário (R$)", min_value=0.01)
+        dados_operacao['Taxas'] = st.number_input("Taxas (R$)", min_value=0.0)
+
+    # --- CAMPOS PARA RENDA FIXA ---
+    elif classe_ativo == "Renda Fixa":
+        dados_operacao['Nome_RF'] = st.text_input("Nome (ex: CDB Banco Itaú)")
+        dados_operacao['Operacao'] = "Aplicação" # Padronizamos para facilitar
+        dados_operacao['Tipo_RF'] = st.selectbox("Tipo", ["CDB", "LCI", "LCA", "Tesouro"])
+        dados_operacao['Indexador_RF'] = st.selectbox("Indexador", ["CDI", "IPCA+", "Pré-fixado", "Selic"])
+        dados_operacao['Taxa_RF'] = st.number_input("Taxa Contratada (%)", min_value=0.0, format="%.2f")
+        dados_operacao['Preco_Unitario'] = st.number_input("Valor Aplicado (R$)", min_value=0.01)
+        dados_operacao['Quantidade'] = 1 # Para RF, vamos tratar como 1 "cota" do valor total
+        dados_operacao['Vencimento_RF'] = st.date_input("Data de Vencimento")
+
     submit = st.form_submit_button("Salvar Operação")
     
     if submit:
-        nova_linha = pd.DataFrame([{
-            'Data': data, 'Ticker': ticker, 'Operacao': operacao,
-            'Quantidade': qtd, 'Preco_Unitario': preco, 'Taxas': taxas
-        }])
+        # Cria a nova linha usando o dicionário preenchido
+        nova_linha = pd.DataFrame([dados_operacao])
         
         if INPUT_PATH.exists():
             df_existente = pd.read_csv(INPUT_PATH, sep=';')
@@ -47,7 +76,7 @@ with st.sidebar.form("nova_operacao"):
             df_atualizado = nova_linha
             
         df_atualizado.to_csv(INPUT_PATH, sep=';', index=False)
-        st.success(f"{qtd} cotas de {ticker} salvas com sucesso!")
+        st.success("Operação salva com sucesso!")
 
 # =========================================================================== #
 # TELA PRINCIPAL: DASHBOARD
