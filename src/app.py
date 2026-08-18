@@ -5,7 +5,7 @@ import pandas as pd
 import plotly.express as px # Nova biblioteca de gráficos
 import requests
 
-from backend import gerar_carteira_atualizada, get_taxas_bcb,get_stock_quote # importando as funções do backend
+from backend import gerar_carteira_atualizada, get_taxas_bcb, get_stock_quote # importando as funções do backend
 from pathlib import Path
 
 # =========================================================================== #
@@ -132,20 +132,22 @@ if INPUT_PATH.exists():
             lucro_total = patrimonio_total - investimento_total
             rentab_geral = (lucro_total / investimento_total) * 100 if investimento_total > 0 else 0
             
-            # Função rápida para formatar no padrão Brasileiro R$ 1.000,00
+            # --- NOVO: Cálculo do DY Médio da Carteira (Média Ponderada) ---
+            if patrimonio_total > 0:
+                dy_medio_carteira = (df_final['Valor_Atual'] * df_final['DY_%']).sum() / patrimonio_total
+            else:
+                dy_medio_carteira = 0.0
+            
             def formata_br(valor):
                 return f"R$ {valor:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
             
-            # Divide a tela em 4 colunas para os Cards
             c1, c2, c3, c4 = st.columns(4)
             c1.metric("Patrimônio Atual", formata_br(patrimonio_total))
             c2.metric("Valor Investido", formata_br(investimento_total))
-            
-            # O st.metric já deixa a rentabilidade verde/vermelha automaticamente!
             c3.metric("Lucro/Prejuízo", formata_br(lucro_total), f"{rentab_geral:.2f}%")
             
-            # Placeholder para o DY (Futura implementação no Backend)
-            c4.metric("Dividend Yield (Estimado)", "6.50 %")
+            # O Card agora exibe o valor matemático real!
+            c4.metric("Dividend Yield (12m)", f"{dy_medio_carteira:.2f}%")
             
             st.divider() # Cria uma linha separadora elegante
             
@@ -200,30 +202,36 @@ if INPUT_PATH.exists():
                     st.info("Nenhum saldo para exibir neste filtro.")
                 
             with col_tabela:
-                # 2. Configuração base das colunas
+                # 2. Configuração base das colunas (Adicionamos o DY)
                 col_config = {
                     "logourl": st.column_config.ImageColumn("Logo"),
                     "Ativo": st.column_config.TextColumn("Ativo/Nome", width="medium"),
-                    "Qtd_Cotas": st.column_config.NumberColumn("Qtd", format="%.0f"),
+                    "Qtd_Cotas": st.column_config.NumberColumn("Qtd"),
                     "Preco_Medio": st.column_config.NumberColumn("PM / Aporte", format="R$ %.2f"),
                     "Total_Investido": st.column_config.NumberColumn("Investido", format="R$ %.2f"),
                     "Valor_Atual": st.column_config.NumberColumn("Saldo Atual", format="R$ %.2f"),
                     "Lucro_Prejuizo_R$": st.column_config.NumberColumn("Retorno (R$)", format="R$ %.2f"),
                     "Rentabilidade_%": st.column_config.NumberColumn("Rentab.", format="%.2f %%"),
+                    "DY_%": st.column_config.NumberColumn("DY (12m)", format="%.2f %%"), # Nova Coluna Base
                     "Classe": None,         
                     "Indexador_RF": None    
                 }
                 
-                # 3. Lógica para esconder Cotação e Taxa baseado no Filtro
+                # 3. Lógica para esconder colunas baseado no Filtro
                 if filtro == "Todas":
                     col_config["regularMarketPrice"] = None
                     col_config["Taxa_RF"] = None
+                    col_config["DY_%"] = None # Esconde o DY na visão geral
+                    
                 elif filtro == "Renda Variável (Ações/FIIs)":
                     col_config["regularMarketPrice"] = st.column_config.NumberColumn("Cotação", format="R$ %.2f")
                     col_config["Taxa_RF"] = None
+                    # A coluna "DY_%", por não estar com 'None' aqui, aparecerá nativamente!
+                    
                 elif filtro == "Renda Fixa":
                     col_config["regularMarketPrice"] = None
                     col_config["Taxa_RF"] = st.column_config.NumberColumn("Taxa Contratada", format="%.2f %%")
+                    col_config["DY_%"] = None # Esconde o DY na renda fixa
 
                 # 4. Lógica de Cores (Verde/Vermelho)
                 def colorir_linhas(row):

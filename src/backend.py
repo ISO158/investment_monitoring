@@ -17,27 +17,46 @@ DATA_DIR.mkdir(parents=True, exist_ok=True)
 INPUT_PATH = DATA_DIR / "historico_operacoes.csv"
 OUTPUT_PATH = DATA_DIR / "carteira_atualizada.csv"
 
-load_dotenv()
+# =========================================================================== #
+# FUNÇÕES CORE e API de dados das ações
+# =========================================================================== #
+
+# Mantenha o seu BASE_URL intacto lá no topo caso use em outras partes do código
 BASE_URL = "https://brapi.dev/api/v2"
 TOKEN = os.getenv("BRAPI_TOKEN")
 
-# =========================================================================== #
-# FUNÇÕES CORE
-# =========================================================================== #
-
 def get_stock_quote(symbols):
-    url = f"{BASE_URL}/stocks/quote"
+    # 1. Usamos o endpoint principal que junta cotação e fundamentos
+    tickers_str = ",".join(symbols)
+    url = f"https://brapi.dev/api/quote/{tickers_str}"
+    
+    # 2. Solicitamos explicitamente o módulo de estatísticas
     params = {
-        "symbols": ",".join(symbols),
-        "token": TOKEN
+        "token": TOKEN,
+        "modules": "defaultKeyStatistics" 
     }
+    
     response = requests.get(url, params=params)
     response.raise_for_status()
 
     json_response = response.json()
     resultados = json_response.get("results", [])
     
-    dados_limpos = [acao['data'] for acao in resultados if 'data' in acao]
+    dados_limpos = []
+    for acao in resultados:
+        # Pega as informações básicas de cotação e imagem
+        dado = {
+            'shortName': acao.get('shortName'),
+            'regularMarketPrice': acao.get('regularMarketPrice'),
+            'logourl': acao.get('logourl'),
+        }
+        
+        # 3. Extrai o DY de dentro do bloco defaultKeyStatistics
+        stats = acao.get('defaultKeyStatistics', {})
+        dado['dividendYield'] = stats.get('dividendYield', 0.0)
+        
+        dados_limpos.append(dado)
+        
     return dados_limpos
 
 # =========================================================================== #
@@ -51,29 +70,22 @@ def calcular_posicao_atual(df_ops):
     for _, row in df_ops.iterrows():
         classe = row.get('Classe', 'Renda Variável (Ações/FIIs)')
         
-        # --- NOVA LÓGICA DE AGRUPAMENTO (CHAVE ÚNICA COMPOSTA) ---
         if classe == 'Renda Variável (Ações/FIIs)':
-            # Para ações, a chave e o nome de exibição continuam sendo o Ticker
             ativo_exibicao = str(row.get('Ticker', '')).upper()
             chave_unica = ativo_exibicao
-            indexador = ''
-            taxa_rf = 0.0
+            indexador, taxa_rf, data_op = '', 0.0, ''
         else:
-            # Para Renda Fixa, pegamos todas as características
             nome = str(row.get('Nome_RF', '')).strip()
             tipo = str(row.get('Tipo_RF', '')).strip()
             indexador = str(row.get('Indexador_RF', '')).strip()
             taxa_rf = row.get('Taxa_RF', 0.0)
             vencimento = str(row.get('Vencimento_RF', '')).strip()
             
-            # A chave que o Python usa para saber se deve somar ou separar:
-            chave_unica = f"{nome}_{tipo}_{indexador}_{taxa_rf}_{vencimento}"
-            
-            # O nome amigável que vai aparecer na tabela e no gráfico:
-            # Ex: CDB Banco Itaú (CDB | Venc: 2026-12-01)
+            # NOVO: Adicionamos a Data na chave. Aplicações em dias diferentes rendem juros diferentes!
+            data_op = str(row.get('Data', '')).strip() 
+            chave_unica = f"{nome}_{tipo}_{indexador}_{taxa_rf}_{vencimento}_{data_op}"
             ativo_exibicao = f"{nome} ({tipo} | Venc: {vencimento})"
             
-        # Pula se a linha for inválida (vazia)
         if pd.isna(chave_unica) or not str(chave_unica).strip():
             continue
             
@@ -82,25 +94,18 @@ def calcular_posicao_atual(df_ops):
         preco = row['Preco_Unitario']
         taxas = row['Taxas']
         
-        # Se essa chave única não existe ainda, cria a gaveta
         if chave_unica not in posicoes:
             posicoes[chave_unica] = {
-                'Ativo': ativo_exibicao, # Guardamos o nome bonitinho
-                'Classe': classe, 
-                'Qtd_Cotas': 0, 
-                'Total_Investido': 0.0, 
-                'Preco_Medio': 0.0, 
-                'Indexador_RF': indexador, 
-                'Taxa_RF': taxa_rf
+                'Ativo': ativo_exibicao, 'Classe': classe, 'Qtd_Cotas': 0, 
+                'Total_Investido': 0.0, 'Preco_Medio': 0.0, 
+                'Indexador_RF': indexador, 'Taxa_RF': taxa_rf, 'Data_Aplicacao': data_op
             }
             
         pos = posicoes[chave_unica]
         
-        # Lógica de somar/subtrair posições
         if op in ['COMPRA', 'APLICAÇÃO', 'APLICACAO']:
-            custo_compra = (qtd * preco) + taxas
             pos['Qtd_Cotas'] += qtd
-            pos['Total_Investido'] += custo_compra
+            pos['Total_Investido'] += (qtd * preco) + taxas
             pos['Preco_Medio'] = pos['Total_Investido'] / pos['Qtd_Cotas']
             
         elif op in ['VENDA', 'RESGATE']:
@@ -111,13 +116,9 @@ def calcular_posicao_atual(df_ops):
                 pos['Total_Investido'] = 0.0
                 pos['Preco_Medio'] = 0.0
                 
-    # Agora criamos o DataFrame apenas a partir dos valores armazenados (ignorando a chave_unica complexa)
     df_carteira = pd.DataFrame(list(posicoes.values()))
-    
-    # Prevenção extra de erro caso o histórico esteja zerado:
     if df_carteira.empty:
-        return pd.DataFrame(columns=['Ativo', 'Classe', 'Qtd_Cotas', 'Total_Investido', 'Preco_Medio', 'Indexador_RF', 'Taxa_RF'])
-        
+        return pd.DataFrame(columns=['Ativo', 'Classe', 'Qtd_Cotas', 'Total_Investido', 'Preco_Medio', 'Indexador_RF', 'Taxa_RF', 'Data_Aplicacao'])
     return df_carteira[df_carteira['Qtd_Cotas'] > 0]
 
 # =========================================================================== #
@@ -128,6 +129,7 @@ def gerar_carteira_atualizada(df_historico):
     if df_carteira.empty:
         return df_carteira
         
+    # --- 1. BUSCA DADOS DE RENDA VARIÁVEL (API BRAPI) ---
     df_rv = df_carteira[df_carteira['Classe'] == 'Renda Variável (Ações/FIIs)']
     tickers_ativos = df_rv['Ativo'].tolist()
     
@@ -135,24 +137,74 @@ def gerar_carteira_atualizada(df_historico):
     if tickers_ativos:
         try:
             dados_api = get_stock_quote(tickers_ativos)
-            df_mercado = pd.DataFrame(dados_api)[['shortName', 'regularMarketPrice', 'logourl']]
+            df_mercado = pd.DataFrame(dados_api)
+            
+            # Captura o DY real das Ações (Se não existir, assume 0)
+            if 'dividendYield' in df_mercado.columns:
+                df_mercado['DY_%'] = df_mercado['dividendYield'].fillna(0.0) * 100
+            else:
+                df_mercado['DY_%'] = 0.0
+                
+            colunas_presentes = [col for col in ['shortName', 'regularMarketPrice', 'logourl', 'DY_%'] if col in df_mercado.columns]
+            df_mercado = df_mercado[colunas_presentes]
         except Exception as e:
             print(f"Erro na API Brapi: {e}")
             
     if not df_mercado.empty:
         df_final = pd.merge(df_carteira, df_mercado, left_on='Ativo', right_on='shortName', how='left')
-        df_final = df_final.drop(columns=['shortName'])
+        if 'shortName' in df_final.columns: df_final = df_final.drop(columns=['shortName'])
     else:
         df_final = df_carteira.copy()
         df_final['regularMarketPrice'] = np.nan
         df_final['logourl'] = None
-        
-    df_final['Valor_Atual'] = np.where(
-        df_final['Classe'] == 'Renda Variável (Ações/FIIs)',
-        df_final['Qtd_Cotas'] * df_final['regularMarketPrice'].fillna(0),
-        df_final['Total_Investido']
-    )
+        df_final['DY_%'] = 0.0
+
+    # --- 2. BUSCA TAXAS MACRO PARA RENDA FIXA (API BCB) ---
+    taxas_macro = get_taxas_bcb()
+    cdi_atual = taxas_macro.get('CDI', 10.5) / 100
+    ipca_atual = taxas_macro.get('IPCA', 4.5) / 100
+    selic_atual = taxas_macro.get('SELIC', 10.5) / 100
+
+    # --- 3. MATEMÁTICA FINANCEIRA (JUROS COMPOSTOS) ---
+    def aplicar_matematica_financeira(row):
+        # Se for Ação, devolve a cotação da API e o DY da API
+        if row['Classe'] == 'Renda Variável (Ações/FIIs)':
+            valor_atual = row['Qtd_Cotas'] * row.get('regularMarketPrice', 0)
+            if pd.isna(valor_atual): valor_atual = row['Total_Investido']
+            return pd.Series([valor_atual, row.get('DY_%', 0.0)])
+            
+        # Se for Renda Fixa, calcula o tempo passado e os Juros
+        try:
+            data_app = pd.to_datetime(row['Data_Aplicacao'])
+            hoje = pd.Timestamp.today()
+            # Calcula quantos anos se passaram (Usamos 365.25 para precisão de ano bissexto)
+            anos_passados = (hoje - data_app).days / 365.25
+            if anos_passados < 0: anos_passados = 0
+
+            taxa_contratada = row['Taxa_RF'] / 100
+
+            # Define a Taxa Anual Equivalente baseada no indexador
+            if row['Indexador_RF'] == 'CDI':
+                taxa_anual = taxa_contratada * cdi_atual  # Ex: 110% do CDI -> 1.10 * 0.105
+            elif row['Indexador_RF'] == 'IPCA+':
+                taxa_anual = ipca_atual + taxa_contratada # Ex: IPCA + 6% -> 0.045 + 0.06
+            elif row['Indexador_RF'] == 'Selic':
+                taxa_anual = taxa_contratada * selic_atual
+            else: # Pré-fixado
+                taxa_anual = taxa_contratada
+
+            # Fórmula dos Juros Compostos: Montante = Capital * (1 + Taxa)^Tempo
+            valor_atualizado = row['Total_Investido'] * ((1 + taxa_anual) ** anos_passados)
+            
+            # Devolve o Novo Valor e a Taxa Anual (que usaremos no lugar do DY)
+            return pd.Series([valor_atualizado, taxa_anual * 100])
+        except Exception:
+            return pd.Series([row['Total_Investido'], 0.0])
+
+    # Aplica a função mágica linha por linha criando as colunas definitivas
+    df_final[['Valor_Atual', 'DY_%']] = df_final.apply(aplicar_matematica_financeira, axis=1)
     
+    # --- 4. INDICADORES FINAIS DE PERFORMANCE ---
     df_final['Lucro_Prejuizo_R$'] = df_final['Valor_Atual'] - df_final['Total_Investido']
     df_final['Rentabilidade_%'] = np.where(
         df_final['Total_Investido'] > 0,
@@ -160,16 +212,10 @@ def gerar_carteira_atualizada(df_historico):
         0.0
     )
 
-    # TRUQUE VISUAL: Gera a logo da Renda Fixa usando a API UI Avatars
-    # Ex: Pega "IPCA+" e transforma numa imagem azul com letras brancas
+    # TRUQUE VISUAL DA LOGO
     df_final['Indexador_RF'] = df_final['Indexador_RF'].fillna('')
     url_rf = "https://ui-avatars.com/api/?name=" + df_final['Indexador_RF'].str.replace('+', '%2B') + "&background=0D8ABC&color=fff&length=4&font-size=0.35&bold=true"
-    
-    df_final['logourl'] = np.where(
-        df_final['Classe'] == 'Renda Variável (Ações/FIIs)',
-        df_final['logourl'],
-        url_rf
-    )
+    df_final['logourl'] = np.where(df_final['Classe'] == 'Renda Variável (Ações/FIIs)', df_final['logourl'], url_rf)
     
     df_final.to_csv(OUTPUT_PATH, index=False)
     return df_final
