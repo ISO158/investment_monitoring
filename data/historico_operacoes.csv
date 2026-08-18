@@ -1,7 +1,5 @@
 Data;Ticker;Operacao;Quantidade;Preco_Unitario;Taxas
-10/01/2025;ITUB4;Compra;10;20.0;0.0
-15/02/2025;ITUB4;Compra;5;10.0;0.0
-20/03/2025;PETR4;Compra;100;38.0;2.5
-10/04/2025;PETR4;Venda;50;42.0;1.0
+10/01/2025;ITUB4;Compra;2;20.0;0.0
+20/03/2025;PETR4;Compra;5;38.0;2.5
 17/08/2026;MGLU3;Compra;10;50.0;0.0
-2026-08-17;ITUB4;Compra;10;30.0;0.0
+17/08/2026;VALE3;Compra;3;24.50;0.0
