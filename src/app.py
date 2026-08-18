@@ -116,7 +116,7 @@ with st.sidebar.form("nova_operacao"):
 # =========================================================================== #
 # TELA PRINCIPAL: DASHBOARD
 # =========================================================================== #
-st.title("📊 Visão Geral do Portfólio")
+st.title("Minha Carteira")
 
 if INPUT_PATH.exists():
     df_historico = pd.read_csv(INPUT_PATH, sep=';')
@@ -153,7 +153,7 @@ if INPUT_PATH.exists():
             # --- 2. SEÇÃO DE FILTROS GLOBAIS ---
             # O filtro foi movido para cima para comandar Gráfico e Tabela
             # ==========================================================
-            st.markdown("#### 🎯 Explorar Carteira")
+            # st.markdown("#### 🎯 Explorar Carteira")
             filtro = st.radio(
                 "Selecione a visualização:", 
                 ["Todas", "Renda Variável (Ações/FIIs)", "Renda Fixa"], 

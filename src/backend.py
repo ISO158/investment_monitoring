@@ -50,9 +50,31 @@ def calcular_posicao_atual(df_ops):
     
     for _, row in df_ops.iterrows():
         classe = row.get('Classe', 'Renda Variável (Ações/FIIs)')
-        ativo = row['Ticker'] if classe == 'Renda Variável (Ações/FIIs)' else row['Nome_RF']
         
-        if pd.isna(ativo) or not str(ativo).strip():
+        # --- NOVA LÓGICA DE AGRUPAMENTO (CHAVE ÚNICA COMPOSTA) ---
+        if classe == 'Renda Variável (Ações/FIIs)':
+            # Para ações, a chave e o nome de exibição continuam sendo o Ticker
+            ativo_exibicao = str(row.get('Ticker', '')).upper()
+            chave_unica = ativo_exibicao
+            indexador = ''
+            taxa_rf = 0.0
+        else:
+            # Para Renda Fixa, pegamos todas as características
+            nome = str(row.get('Nome_RF', '')).strip()
+            tipo = str(row.get('Tipo_RF', '')).strip()
+            indexador = str(row.get('Indexador_RF', '')).strip()
+            taxa_rf = row.get('Taxa_RF', 0.0)
+            vencimento = str(row.get('Vencimento_RF', '')).strip()
+            
+            # A chave que o Python usa para saber se deve somar ou separar:
+            chave_unica = f"{nome}_{tipo}_{indexador}_{taxa_rf}_{vencimento}"
+            
+            # O nome amigável que vai aparecer na tabela e no gráfico:
+            # Ex: CDB Banco Itaú (CDB | Venc: 2026-12-01)
+            ativo_exibicao = f"{nome} ({tipo} | Venc: {vencimento})"
+            
+        # Pula se a linha for inválida (vazia)
+        if pd.isna(chave_unica) or not str(chave_unica).strip():
             continue
             
         op = str(row['Operacao']).upper()
@@ -60,18 +82,21 @@ def calcular_posicao_atual(df_ops):
         preco = row['Preco_Unitario']
         taxas = row['Taxas']
         
-        # Salvando as características únicas da Renda Fixa
-        indexador = row.get('Indexador_RF', '')
-        taxa_rf = row.get('Taxa_RF', 0.0)
-        
-        if ativo not in posicoes:
-            posicoes[ativo] = {
-                'Classe': classe, 'Qtd_Cotas': 0, 'Total_Investido': 0.0, 
-                'Preco_Medio': 0.0, 'Indexador_RF': indexador, 'Taxa_RF': taxa_rf
+        # Se essa chave única não existe ainda, cria a gaveta
+        if chave_unica not in posicoes:
+            posicoes[chave_unica] = {
+                'Ativo': ativo_exibicao, # Guardamos o nome bonitinho
+                'Classe': classe, 
+                'Qtd_Cotas': 0, 
+                'Total_Investido': 0.0, 
+                'Preco_Medio': 0.0, 
+                'Indexador_RF': indexador, 
+                'Taxa_RF': taxa_rf
             }
             
-        pos = posicoes[ativo]
+        pos = posicoes[chave_unica]
         
+        # Lógica de somar/subtrair posições
         if op in ['COMPRA', 'APLICAÇÃO', 'APLICACAO']:
             custo_compra = (qtd * preco) + taxas
             pos['Qtd_Cotas'] += qtd
@@ -86,8 +111,13 @@ def calcular_posicao_atual(df_ops):
                 pos['Total_Investido'] = 0.0
                 pos['Preco_Medio'] = 0.0
                 
-    df_carteira = pd.DataFrame.from_dict(posicoes, orient='index').reset_index()
-    df_carteira = df_carteira.rename(columns={'index': 'Ativo'})
+    # Agora criamos o DataFrame apenas a partir dos valores armazenados (ignorando a chave_unica complexa)
+    df_carteira = pd.DataFrame(list(posicoes.values()))
+    
+    # Prevenção extra de erro caso o histórico esteja zerado:
+    if df_carteira.empty:
+        return pd.DataFrame(columns=['Ativo', 'Classe', 'Qtd_Cotas', 'Total_Investido', 'Preco_Medio', 'Indexador_RF', 'Taxa_RF'])
+        
     return df_carteira[df_carteira['Qtd_Cotas'] > 0]
 
 # =========================================================================== #
