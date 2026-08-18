@@ -1,3 +1,5 @@
-Data_Operacao,Ticker,Tipo,Quantidade,Preco_Unitario,Taxas
-2025-10-27,ITUB4,Compra,100,32.50,1.50
-2025-10-31,VALE3,Compra,50,68.00,0.80
+Data;Ticker;Operacao;Quantidade;Preco_Unitario;Taxas
+10/01/2025;ITUB4;Compra;10;20.00;0.00
+15/02/2025;ITUB4;Compra;5;10.00;0.00
+20/03/2025;PETR4;Compra;100;38.00;2.50
+10/04/2025;PETR4;Venda;50;42.00;1.00
