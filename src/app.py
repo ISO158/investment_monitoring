@@ -57,10 +57,19 @@ with st.sidebar.form("nova_operacao"):
         dados_operacao['Nome_RF'] = st.text_input("Nome (ex: CDB Banco Itaú)")
         dados_operacao['Operacao'] = "Aplicação" 
         dados_operacao['Tipo_RF'] = st.selectbox("Tipo", ["CDB", "LCI", "LCA", "Tesouro"])
-        dados_operacao['Indexador_RF'] = st.selectbox("Indexador", [f"CDI {taxas_macro['CDI']}%", 
-                                                                    f"IPCA+ {taxas_macro['IPCA']}%", 
-                                                                    "Pré-fixado", 
-                                                                    f"Selic {taxas_macro['SELIC']}%"])
+
+        labels_indexador = {
+            "CDI": f"CDI ({taxas_macro['CDI']}%)",
+            "IPCA+": f"IPCA+ ({taxas_macro['IPCA']}%)",
+            "Selic": f"Selic ({taxas_macro['SELIC']}%)",
+            "Pré-fixado": "Pré-fixado"
+        }
+        dados_operacao['Indexador_RF'] = st.selectbox(
+            "Indexador", 
+            options=["CDI", "IPCA+", "Pré-fixado", "Selic"],
+            format_func=lambda x: labels_indexador[x]
+        )
+
         dados_operacao['Taxa_RF'] = st.number_input("Taxa Contratada (%)", min_value=0.0, format="%.2f")
         dados_operacao['Preco_Unitario'] = st.number_input("Valor Aplicado (R$)", min_value=0.01)
         dados_operacao['Quantidade'] = 1 
@@ -136,67 +145,97 @@ if INPUT_PATH.exists():
             c3.metric("Lucro/Prejuízo", formata_br(lucro_total), f"{rentab_geral:.2f}%")
             
             # Placeholder para o DY (Futura implementação no Backend)
-            c4.metric("Dividend Yield (Estimado)", "6.50 %") 
+            c4.metric("Dividend Yield (Estimado)", "6.50 %")
             
             st.divider() # Cria uma linha separadora elegante
             
-            # --- 2. SEÇÃO DE GRÁFICOS E TABELA ---
+            # ==========================================================
+            # --- 2. SEÇÃO DE FILTROS GLOBAIS ---
+            # O filtro foi movido para cima para comandar Gráfico e Tabela
+            # ==========================================================
+            st.markdown("#### 🎯 Explorar Carteira")
+            filtro = st.radio(
+                "Selecione a visualização:", 
+                ["Todas", "Renda Variável (Ações/FIIs)", "Renda Fixa"], 
+                horizontal=True,
+                label_visibility="collapsed" # Esconde o texto do título para ficar mais clean
+            )
+
+            # 1. Configura a Lógica do Filtro: Qual fatia do bolo vamos mostrar?
+            if filtro == "Todas":
+                df_exibicao = df_final
+                # Visão Macro: Agrupa o gráfico pela Classe de ativo
+                coluna_agrupamento = 'Classe' 
+            else:
+                df_exibicao = df_final[df_final['Classe'] == filtro]
+                # Visão Micro: Agrupa o gráfico pelo Nome individual do Ativo
+                coluna_agrupamento = 'Ativo'
+
+            # ==========================================================
+            # --- 3. SEÇÃO DE GRÁFICOS E TABELA ---
+            # ==========================================================
             col_grafico, col_tabela = st.columns([1.5, 2.5]) 
             
             with col_grafico:
-                st.markdown("#### Composição da Carteira")
-                # Gráfico agora é baseado no 'Ativo' genérico
-                fig = px.pie(df_final, values='Valor_Atual', names='Ativo', hole=0.5, color_discrete_sequence=px.colors.sequential.Teal)
-                fig.update_layout(margin=dict(t=20, b=20, l=0, r=0), paper_bgcolor="rgba(0,0,0,0)")
-                st.plotly_chart(fig, use_container_width=True)
+                # Proteção: Só desenha o gráfico se tiver dinheiro investido nessa classe
+                if df_exibicao['Valor_Atual'].sum() > 0:
+                    fig = px.pie(
+                        df_exibicao, 
+                        values='Valor_Atual', 
+                        names=coluna_agrupamento, # Dinâmico: Aqui acontece a mágica da mudança!
+                        hole=0.45, 
+                        color_discrete_sequence=px.colors.sequential.Teal
+                    )
+                    
+                    # Deixa o gráfico mais bonito: legenda embaixo e % dentro das fatias
+                    fig.update_traces(textposition='inside', textinfo='percent')
+                    fig.update_layout(
+                        margin=dict(t=10, b=10, l=0, r=0), 
+                        paper_bgcolor="rgba(0,0,0,0)",
+                        showlegend=True,
+                        legend=dict(orientation="h", yanchor="top", y=-0.1, xanchor="center", x=0.5)
+                    )
+                    st.plotly_chart(fig, use_container_width=True)
+                else:
+                    st.info("Nenhum saldo para exibir neste filtro.")
                 
             with col_tabela:
-                st.markdown("#### Meus Ativos")
-                
-                filtro = st.radio("Filtrar por Classe:", ["Todas", "Renda Variável (Ações/FIIs)", "Renda Fixa"], horizontal=True)
-                
-                # 1. Configuração base das colunas
+                # 2. Configuração base das colunas
                 col_config = {
-                    "logourl": st.column_config.ImageColumn("Logo/Index"),
+                    "logourl": st.column_config.ImageColumn("Logo"),
                     "Ativo": st.column_config.TextColumn("Ativo/Nome", width="medium"),
-                    "Qtd_Cotas": st.column_config.NumberColumn("Qtd"),
+                    "Qtd_Cotas": st.column_config.NumberColumn("Qtd", format="%.0f"),
                     "Preco_Medio": st.column_config.NumberColumn("PM / Aporte", format="R$ %.2f"),
                     "Total_Investido": st.column_config.NumberColumn("Investido", format="R$ %.2f"),
                     "Valor_Atual": st.column_config.NumberColumn("Saldo Atual", format="R$ %.2f"),
                     "Lucro_Prejuizo_R$": st.column_config.NumberColumn("Retorno (R$)", format="R$ %.2f"),
                     "Rentabilidade_%": st.column_config.NumberColumn("Rentab.", format="%.2f %%"),
-                    "Classe": None,         # Esconde sempre
-                    "Indexador_RF": None    # Esconde sempre (já está na logo)
+                    "Classe": None,         
+                    "Indexador_RF": None    
                 }
                 
-                # 2. Lógica Dinâmica para Ocultar/Mostrar colunas e Filtrar os dados
+                # 3. Lógica para esconder Cotação e Taxa baseado no Filtro
                 if filtro == "Todas":
-                    col_config["regularMarketPrice"] = None # Esconde Cotação
-                    col_config["Taxa_RF"] = None            # Esconde Taxa %
-                    df_exibicao = df_final
-                    
+                    col_config["regularMarketPrice"] = None
+                    col_config["Taxa_RF"] = None
                 elif filtro == "Renda Variável (Ações/FIIs)":
                     col_config["regularMarketPrice"] = st.column_config.NumberColumn("Cotação", format="R$ %.2f")
                     col_config["Taxa_RF"] = None
-                    df_exibicao = df_final[df_final['Classe'] == filtro]
-                    
                 elif filtro == "Renda Fixa":
                     col_config["regularMarketPrice"] = None
                     col_config["Taxa_RF"] = st.column_config.NumberColumn("Taxa Contratada", format="%.2f %%")
-                    df_exibicao = df_final[df_final['Classe'] == filtro]
 
-                # 3. Lógica de Cores (Verde/Vermelho nas linhas)
+                # 4. Lógica de Cores (Verde/Vermelho)
                 def colorir_linhas(row):
                     rentab = row['Rentabilidade_%']
                     if rentab > 0:
-                        color = 'rgba(76, 175, 80, 0.15)' # Fundo verde bem suave
+                        color = 'rgba(76, 175, 80, 0.15)' 
                     elif rentab < 0:
-                        color = 'rgba(244, 67, 54, 0.15)' # Fundo vermelho bem suave
+                        color = 'rgba(244, 67, 54, 0.15)' 
                     else:
-                        color = '' # Fica com a cor padrão do Streamlit
+                        color = '' 
                     return [f'background-color: {color}' for _ in row]
 
-                # Aplica as cores no DataFrame que será exibido
                 df_styled = df_exibicao.style.apply(colorir_linhas, axis=1)
 
                 st.dataframe(
@@ -207,7 +246,7 @@ if INPUT_PATH.exists():
                 )
                 
         except requests.exceptions.HTTPError as e:
-            st.error("🚨 Ocorreu um erro ao consultar a API. Verifique se há algum Ticker digitado errado no histórico!")
+            st.error("🚨 Ocorreu um erro ao consultar a API da B3. Verifique a conexão.")
     else:
         st.info("O histórico está vazio. Cadastre uma operação ao lado.")
 else:

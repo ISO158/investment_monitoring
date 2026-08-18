@@ -145,7 +145,7 @@ def gerar_carteira_atualizada(df_historico):
     return df_final
 
 # =========================================================================== #
-# Coletando dados do CDI e IPCA acumulado
+# Coletando dados do CDI, Selic e IPCA acumulado
 # =========================================================================== #
 
 # Adicione esta função no seu backend.py
