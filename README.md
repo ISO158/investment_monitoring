@@ -1,9 +1,15 @@
 # 📊 Dashboard de Acompanhamento de Investimentos
 
-![Python](https://img.shields.io/badge/Python-3776AB?style=for-the-badge&logo=python&logoColor=white)
-![Streamlit](https://img.shields.io/badge/Streamlit-FF4B4B?style=for-the-badge&logo=Streamlit&logoColor=white)
-![Pandas](https://img.shields.io/badge/Pandas-150458?style=for-the-badge&logo=pandas&logoColor=white)
-![Plotly](https://img.shields.io/badge/Plotly-3F4F75?style=for-the-badge&logo=plotly&logoColor=white)
+<div align="center">
+  <h1>🧠 Machine Learning & Deep Learning Studies</h1>
+  <p>
+    <img src="https://img.shields.io/badge/Python-3776AB?style=flat&logo=python&logoColor=white" alt="Python" />
+    <img src="https://img.shields.io/badge/Streamlit-FF4B4B?style=for-the-badge&logo=Streamlit&logoColor=white" alt="Streamlit" />
+    <img src="https://img.shields.io/badge/Plotly-3F4F75?style=for-the-badge&logo=plotly&logoColor=white" alt="Plotly" />
+    <img src="https://img.shields.io/badge/NumPy-013243.svg?style=flat&logo=NumPy&logoColor=white" alt="NumPy" />
+    <img src="https://img.shields.io/badge/Pandas-150458.svg?style=flat&logo=pandas&logoColor=white" alt="Pandas" />
+  </p>
+</div>
 
 Um sistema completo (Back-end e Front-end) para gestão, visualização e acompanhamento de portfólio de investimentos, abrangendo Renda Variável (Ações/FIIs) e Renda Fixa. O projeto consolida cálculos automáticos de preço médio, cruzamento com dados ao vivo da B3 e indicadores macroeconômicos do Banco Central.
 
@@ -47,6 +53,7 @@ investment_monitoring/
 ├── notebooks/                        # Ambientes de teste e experimentação (.ipynb)
 ├── .env                              # Chaves de API (não versionado)
 ├── .gitignore                        # Arquivos ignorados pelo Git
+├── requirements.txt                  # Bibliotecas a serem importadas
 └── README.md                         # Documentação do projeto
 
 ```
@@ -58,7 +65,7 @@ investment_monitoring/
 **1. Clone o repositório**
 
 ```bash
-git clone [https://github.com/seu-usuario/investment_monitoring.git](https://github.com/seu-usuario/investment_monitoring.git)
+git clone https://github.com/ISO158/investment_monitoring
 cd investment_monitoring
 
 ```
@@ -77,7 +84,7 @@ source .venv/bin/activate
 **3. Instale as dependências**
 
 ```bash
-pip install pandas numpy streamlit plotly requests python-dotenv
+pip install -r requirements.txt
 
 ```
 
