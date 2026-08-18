@@ -1,3 +1,9 @@
 Data;Classe;Ticker;Operacao;Quantidade;Preco_Unitario;Taxas;Nome_RF;Tipo_RF;Indexador_RF;Taxa_RF;Vencimento_RF;Liquidez_Diaria
-2026-08-18;Renda Variável (Ações/FIIs);ITUB4;Compra;1;0.01;0.0;;;;0.0;;False
-2026-08-18;Renda Fixa;;Aplicação;1;1000.0;0.0;cdb do itáu 100% do cdi;CDB;CDI;100.0;2026-08-18;True
+2026-08-18;Renda Variável (Ações/FIIs);ITUB4;Compra;5;20.0;0.0;;;;0.0;;False
+2026-08-18;Renda Variável (Ações/FIIs);VALE3;Compra;10;35.0;0.0;;;;0.0;;False
+2026-08-18;Renda Variável (Ações/FIIs);MGLU3;Compra;20;2.0;0.0;;;;0.0;;False
+2026-08-18;Renda Variável (Ações/FIIs);PETR4;Compra;2;40.0;0.0;;;;0.0;;False
+2026-08-18;Renda Fixa;;Aplicação;1;1000.0;0.0;CDB Banco do Brasil;CDB;CDI;100.0;2026-08-18;False
+2026-08-18;Renda Fixa;;Aplicação;1;500.0;0.0;IPCA+ 2029;CDB;IPCA+;90.0;2029-08-31;False
+2026-08-18;Renda Variável (Ações/FIIs);PETR4;Compra;10;60.0;0.0;;;;0.0;;False
+2024-08-01;Renda Fixa;;Aplicação;1;1000.0;0.0;CDB Test de Rendimento;CDB;CDI;120.0;2026-08-18;True

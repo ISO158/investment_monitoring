@@ -50,10 +50,8 @@ def calcular_posicao_atual(df_ops):
     
     for _, row in df_ops.iterrows():
         classe = row.get('Classe', 'Renda Variável (Ações/FIIs)')
-        # Se for ação usa Ticker, se for RF usa o Nome
         ativo = row['Ticker'] if classe == 'Renda Variável (Ações/FIIs)' else row['Nome_RF']
         
-        # Se a linha for inválida ou vazia, pula
         if pd.isna(ativo) or not str(ativo).strip():
             continue
             
@@ -62,8 +60,15 @@ def calcular_posicao_atual(df_ops):
         preco = row['Preco_Unitario']
         taxas = row['Taxas']
         
+        # Salvando as características únicas da Renda Fixa
+        indexador = row.get('Indexador_RF', '')
+        taxa_rf = row.get('Taxa_RF', 0.0)
+        
         if ativo not in posicoes:
-            posicoes[ativo] = {'Classe': classe, 'Qtd_Cotas': 0, 'Total_Investido': 0.0, 'Preco_Medio': 0.0}
+            posicoes[ativo] = {
+                'Classe': classe, 'Qtd_Cotas': 0, 'Total_Investido': 0.0, 
+                'Preco_Medio': 0.0, 'Indexador_RF': indexador, 'Taxa_RF': taxa_rf
+            }
             
         pos = posicoes[ativo]
         
@@ -93,7 +98,6 @@ def gerar_carteira_atualizada(df_historico):
     if df_carteira.empty:
         return df_carteira
         
-    # Isola os ativos de Renda Variável para buscar na API
     df_rv = df_carteira[df_carteira['Classe'] == 'Renda Variável (Ações/FIIs)']
     tickers_ativos = df_rv['Ativo'].tolist()
     
@@ -105,20 +109,17 @@ def gerar_carteira_atualizada(df_historico):
         except Exception as e:
             print(f"Erro na API Brapi: {e}")
             
-    # Cruza os dados: O que for Renda Fixa vai ficar com NaN na cotação e logo
     if not df_mercado.empty:
         df_final = pd.merge(df_carteira, df_mercado, left_on='Ativo', right_on='shortName', how='left')
         df_final = df_final.drop(columns=['shortName'])
     else:
         df_final = df_carteira.copy()
-        df_final['regularMarketPrice'] = 0.0
+        df_final['regularMarketPrice'] = np.nan
         df_final['logourl'] = None
         
-    # Calcula o Valor Atual:
-    # Ações = Qtd * Cotação da API | Renda Fixa = Valor Investido (Até implementarmos a matemática de juros)
     df_final['Valor_Atual'] = np.where(
         df_final['Classe'] == 'Renda Variável (Ações/FIIs)',
-        df_final['Qtd_Cotas'] * df_final.get('regularMarketPrice', 0),
+        df_final['Qtd_Cotas'] * df_final['regularMarketPrice'].fillna(0),
         df_final['Total_Investido']
     )
     
@@ -127,6 +128,17 @@ def gerar_carteira_atualizada(df_historico):
         df_final['Total_Investido'] > 0,
         (df_final['Lucro_Prejuizo_R$'] / df_final['Total_Investido']) * 100,
         0.0
+    )
+
+    # TRUQUE VISUAL: Gera a logo da Renda Fixa usando a API UI Avatars
+    # Ex: Pega "IPCA+" e transforma numa imagem azul com letras brancas
+    df_final['Indexador_RF'] = df_final['Indexador_RF'].fillna('')
+    url_rf = "https://ui-avatars.com/api/?name=" + df_final['Indexador_RF'].str.replace('+', '%2B') + "&background=0D8ABC&color=fff&length=4&font-size=0.35&bold=true"
+    
+    df_final['logourl'] = np.where(
+        df_final['Classe'] == 'Renda Variável (Ações/FIIs)',
+        df_final['logourl'],
+        url_rf
     )
     
     df_final.to_csv(OUTPUT_PATH, index=False)
@@ -141,7 +153,7 @@ def get_taxas_bcb():
     """
     Busca as taxas macroeconômicas atualizadas direto da API do Banco Central.
     """
-    taxas = {'CDI': 0.0, 'IPCA': 0.0}
+    taxas = {'CDI': 0.0, 'IPCA': 0.0, 'SELIC': 0.0}
     try:
         # CDI Anualizado (Código SGS: 4389)
         url_cdi = "https://api.bcb.gov.br/dados/serie/bcdata.sgs.4389/dados/ultimos/1?formato=json"
@@ -154,6 +166,12 @@ def get_taxas_bcb():
         res_ipca = requests.get(url_ipca)
         if res_ipca.status_code == 200:
             taxas['IPCA'] = float(res_ipca.json()[0]['valor'])
+            
+        # Taxa Selic Meta (Código SGS: 432)
+        url_selic = "https://api.bcb.gov.br/dados/serie/bcdata.sgs.432/dados/ultimos/1?formato=json"
+        res_selic = requests.get(url_selic)
+        if res_selic.status_code == 200:
+            taxas['SELIC'] = float(res_selic.json()[0]['valor'])
             
     except Exception as e:
         print(f"Erro ao buscar taxas BCB: {e}")

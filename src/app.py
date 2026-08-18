@@ -26,13 +26,6 @@ OUTPUT_PATH = DATA_DIR / "carteira_atualizada.csv"
 # =========================================================================== #
 st.sidebar.header("Cadastrar Operação")
 
-# # --- PAINEL MACROECONÔMICO AO VIVO ---
-# taxas_macro = get_taxas_bcb()
-# col1, col2 = st.sidebar.columns(2)
-# col1.metric("CDI Atual", f"{taxas_macro['CDI']}%")
-# col2.metric("IPCA (12m)", f"{taxas_macro['IPCA']}%")
-# st.sidebar.divider()
-
 # A escolha da Classe
 classe_ativo = st.sidebar.radio(
     "Classe do Investimento", 
@@ -60,10 +53,14 @@ with st.sidebar.form("nova_operacao"):
 
     # --- CAMPOS PARA RENDA FIXA ---
     elif classe_ativo == "Renda Fixa":
+        taxas_macro = get_taxas_bcb()
         dados_operacao['Nome_RF'] = st.text_input("Nome (ex: CDB Banco Itaú)")
         dados_operacao['Operacao'] = "Aplicação" 
         dados_operacao['Tipo_RF'] = st.selectbox("Tipo", ["CDB", "LCI", "LCA", "Tesouro"])
-        dados_operacao['Indexador_RF'] = st.selectbox("Indexador", ["CDI", "IPCA+", "Pré-fixado", "Selic"])
+        dados_operacao['Indexador_RF'] = st.selectbox("Indexador", [f"CDI {taxas_macro['CDI']}%", 
+                                                                    f"IPCA+ {taxas_macro['IPCA']}%", 
+                                                                    "Pré-fixado", 
+                                                                    f"Selic {taxas_macro['SELIC']}%"])
         dados_operacao['Taxa_RF'] = st.number_input("Taxa Contratada (%)", min_value=0.0, format="%.2f")
         dados_operacao['Preco_Unitario'] = st.number_input("Valor Aplicado (R$)", min_value=0.01)
         dados_operacao['Quantidade'] = 1 
@@ -156,31 +153,57 @@ if INPUT_PATH.exists():
             with col_tabela:
                 st.markdown("#### Meus Ativos")
                 
-                # NOVO: Filtro Dinâmico!
                 filtro = st.radio("Filtrar por Classe:", ["Todas", "Renda Variável (Ações/FIIs)", "Renda Fixa"], horizontal=True)
                 
-                # Aplica o filtro no dataframe antes de exibir
-                if filtro != "Todas":
-                    df_exibicao = df_final[df_final['Classe'] == filtro]
-                else:
+                # 1. Configuração base das colunas
+                col_config = {
+                    "logourl": st.column_config.ImageColumn("Logo/Index"),
+                    "Ativo": st.column_config.TextColumn("Ativo/Nome", width="medium"),
+                    "Qtd_Cotas": st.column_config.NumberColumn("Qtd"),
+                    "Preco_Medio": st.column_config.NumberColumn("PM / Aporte", format="R$ %.2f"),
+                    "Total_Investido": st.column_config.NumberColumn("Investido", format="R$ %.2f"),
+                    "Valor_Atual": st.column_config.NumberColumn("Saldo Atual", format="R$ %.2f"),
+                    "Lucro_Prejuizo_R$": st.column_config.NumberColumn("Retorno (R$)", format="R$ %.2f"),
+                    "Rentabilidade_%": st.column_config.NumberColumn("Rentab.", format="%.2f %%"),
+                    "Classe": None,         # Esconde sempre
+                    "Indexador_RF": None    # Esconde sempre (já está na logo)
+                }
+                
+                # 2. Lógica Dinâmica para Ocultar/Mostrar colunas e Filtrar os dados
+                if filtro == "Todas":
+                    col_config["regularMarketPrice"] = None # Esconde Cotação
+                    col_config["Taxa_RF"] = None            # Esconde Taxa %
                     df_exibicao = df_final
+                    
+                elif filtro == "Renda Variável (Ações/FIIs)":
+                    col_config["regularMarketPrice"] = st.column_config.NumberColumn("Cotação", format="R$ %.2f")
+                    col_config["Taxa_RF"] = None
+                    df_exibicao = df_final[df_final['Classe'] == filtro]
+                    
+                elif filtro == "Renda Fixa":
+                    col_config["regularMarketPrice"] = None
+                    col_config["Taxa_RF"] = st.column_config.NumberColumn("Taxa Contratada", format="%.2f %%")
+                    df_exibicao = df_final[df_final['Classe'] == filtro]
+
+                # 3. Lógica de Cores (Verde/Vermelho nas linhas)
+                def colorir_linhas(row):
+                    rentab = row['Rentabilidade_%']
+                    if rentab > 0:
+                        color = 'rgba(76, 175, 80, 0.15)' # Fundo verde bem suave
+                    elif rentab < 0:
+                        color = 'rgba(244, 67, 54, 0.15)' # Fundo vermelho bem suave
+                    else:
+                        color = '' # Fica com a cor padrão do Streamlit
+                    return [f'background-color: {color}' for _ in row]
+
+                # Aplica as cores no DataFrame que será exibido
+                df_styled = df_exibicao.style.apply(colorir_linhas, axis=1)
 
                 st.dataframe(
-                    df_exibicao, # Mostra o dataframe filtrado
+                    df_styled, 
                     use_container_width=True,
                     hide_index=True,
-                    column_config={
-                        "logourl": st.column_config.ImageColumn("Logo"),
-                        "Ativo": st.column_config.TextColumn("Ativo/Nome", width="medium"),
-                        "Qtd_Cotas": st.column_config.NumberColumn("Qtd"),
-                        "Preco_Medio": st.column_config.NumberColumn("PM / Aporte", format="R$ %.2f"),
-                        "regularMarketPrice": st.column_config.NumberColumn("Cotação", format="R$ %.2f"),
-                        "Total_Investido": st.column_config.NumberColumn("Investido", format="R$ %.2f"),
-                        "Valor_Atual": st.column_config.NumberColumn("Saldo Atual", format="R$ %.2f"),
-                        "Lucro_Prejuizo_R$": st.column_config.NumberColumn("Retorno (R$)", format="R$ %.2f"),
-                        "Rentabilidade_%": st.column_config.NumberColumn("Rentab.", format="%.2f %%"),
-                        "Classe": None # Esconde a coluna de classe da tabela para não poluir
-                    }
+                    column_config=col_config
                 )
                 
         except requests.exceptions.HTTPError as e:
