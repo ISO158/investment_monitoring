@@ -1,5 +1,3 @@
-Ticker,Qtd_Cotas,Total_Investido,Preco_Medio,regularMarketPrice,regularMarketChangePercent,logourl,Valor_Atual,Lucro_Prejuizo_R$,Rentabilidade_%
-ITUB4,11,400.02,36.36545454545455,38.38,-1.59,https://icons.brapi.dev/icons/ITUB4.svg,422.18,22.160000000000025,5.539723013849314
-MGLU3,10,500.0,50.0,4.23,8.18,https://icons.brapi.dev/icons/MGLU3.svg,42.300000000000004,-457.7,-91.53999999999999
-VALE3,3,73.5,24.5,71.41,0.15,https://icons.brapi.dev/icons/VALE3.svg,214.23,140.73,191.46938775510202
-PETR4,5,192.5,38.5,42.47,0.9,https://icons.brapi.dev/icons/PETR4.svg,212.35,19.849999999999994,10.31168831168831
+Ativo,Classe,Qtd_Cotas,Total_Investido,Preco_Medio,regularMarketPrice,logourl,Valor_Atual,Lucro_Prejuizo_R$,Rentabilidade_%
+ITUB4,Renda Variável (Ações/FIIs),1,0.01,0.01,38.38,https://icons.brapi.dev/icons/ITUB4.svg,38.38,38.370000000000005,383700.00000000006
+cdb do itáu 100% do cdi,Renda Fixa,1,1000.0,1000.0,,,1000.0,0.0,0.0

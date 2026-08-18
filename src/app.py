@@ -5,7 +5,7 @@ import pandas as pd
 import plotly.express as px # Nova biblioteca de gráficos
 import requests
 
-from backend import gerar_carteira_atualizada # Importando o SEU código!
+from backend import gerar_carteira_atualizada, get_taxas_bcb,get_stock_quote # importando as funções do backend
 from pathlib import Path
 
 # =========================================================================== #
@@ -22,12 +22,18 @@ INPUT_PATH = DATA_DIR / "historico_operacoes.csv"
 OUTPUT_PATH = DATA_DIR / "carteira_atualizada.csv"
 
 # =========================================================================== #
-# SIDEBAR: Barra com dados para input na lateral
+# BARRA LATERAL: INPUT DE DADOS DINÂMICO
 # =========================================================================== #
-
 st.sidebar.header("Cadastrar Operação")
 
-# A escolha da Classe fica FORA do form para a tela poder se adaptar instantaneamente
+# # --- PAINEL MACROECONÔMICO AO VIVO ---
+# taxas_macro = get_taxas_bcb()
+# col1, col2 = st.sidebar.columns(2)
+# col1.metric("CDI Atual", f"{taxas_macro['CDI']}%")
+# col2.metric("IPCA (12m)", f"{taxas_macro['IPCA']}%")
+# st.sidebar.divider()
+
+# A escolha da Classe
 classe_ativo = st.sidebar.radio(
     "Classe do Investimento", 
     ["Renda Variável (Ações/FIIs)", "Renda Fixa"]
@@ -36,12 +42,12 @@ classe_ativo = st.sidebar.radio(
 with st.sidebar.form("nova_operacao"):
     data = st.date_input("Data da Operação")
     
-    # Dicionário base para salvar no CSV (já com campos vazios preparados)
+    # Adicionamos 'Liquidez_Diaria' ao dicionário base
     dados_operacao = {
         'Data': data, 'Classe': classe_ativo, 'Ticker': None, 'Operacao': None,
         'Quantidade': 0, 'Preco_Unitario': 0.0, 'Taxas': 0.0,
         'Nome_RF': None, 'Tipo_RF': None, 'Indexador_RF': None, 
-        'Taxa_RF': 0.0, 'Vencimento_RF': None
+        'Taxa_RF': 0.0, 'Vencimento_RF': None, 'Liquidez_Diaria': False
     }
 
     # --- CAMPOS PARA RENDA VARIÁVEL ---
@@ -55,28 +61,51 @@ with st.sidebar.form("nova_operacao"):
     # --- CAMPOS PARA RENDA FIXA ---
     elif classe_ativo == "Renda Fixa":
         dados_operacao['Nome_RF'] = st.text_input("Nome (ex: CDB Banco Itaú)")
-        dados_operacao['Operacao'] = "Aplicação" # Padronizamos para facilitar
+        dados_operacao['Operacao'] = "Aplicação" 
         dados_operacao['Tipo_RF'] = st.selectbox("Tipo", ["CDB", "LCI", "LCA", "Tesouro"])
         dados_operacao['Indexador_RF'] = st.selectbox("Indexador", ["CDI", "IPCA+", "Pré-fixado", "Selic"])
         dados_operacao['Taxa_RF'] = st.number_input("Taxa Contratada (%)", min_value=0.0, format="%.2f")
         dados_operacao['Preco_Unitario'] = st.number_input("Valor Aplicado (R$)", min_value=0.01)
-        dados_operacao['Quantidade'] = 1 # Para RF, vamos tratar como 1 "cota" do valor total
+        dados_operacao['Quantidade'] = 1 
         dados_operacao['Vencimento_RF'] = st.date_input("Data de Vencimento")
+        # NOVO CAMPO: Checkbox de Liquidez
+        dados_operacao['Liquidez_Diaria'] = st.checkbox("Liquidez Diária")
 
     submit = st.form_submit_button("Salvar Operação")
     
     if submit:
-        # Cria a nova linha usando o dicionário preenchido
-        nova_linha = pd.DataFrame([dados_operacao])
+        ativo_valido = True
         
-        if INPUT_PATH.exists():
-            df_existente = pd.read_csv(INPUT_PATH, sep=';')
-            df_atualizado = pd.concat([df_existente, nova_linha], ignore_index=True)
-        else:
-            df_atualizado = nova_linha
+        # 1. VALIDAÇÃO: Se for ação, testa na API antes de salvar!
+        if classe_ativo == "Renda Variável (Ações/FIIs)":
+            ticker_digitado = dados_operacao['Ticker']
             
-        df_atualizado.to_csv(INPUT_PATH, sep=';', index=False)
-        st.success("Operação salva com sucesso!")
+            # Impede de salvar se o usuário não digitar nada
+            if not ticker_digitado:
+                ativo_valido = False
+                st.error("🚨 Você precisa digitar um Ticker válido!")
+            else:
+                try:
+                    # Passa o ticker digitado na função.
+                    # get_stock_quote vai lançar uma exceção se a Brapi devolver 404 (Not Found)
+                    get_stock_quote([ticker_digitado])
+                except Exception:
+                    ativo_valido = False
+                    st.error(f"🚨 Ticker '{ticker_digitado}' inválido ou não encontrado na B3! A operação NÃO foi salva.")
+        
+        # 2. SALVAMENTO: Só executa se passar no teste (ou se for Renda Fixa)
+        if ativo_valido:
+            nova_linha = pd.DataFrame([dados_operacao])
+            
+            if INPUT_PATH.exists():
+                df_existente = pd.read_csv(INPUT_PATH, sep=';')
+                df_atualizado = pd.concat([df_existente, nova_linha], ignore_index=True)
+            else:
+                df_atualizado = nova_linha
+                
+            df_atualizado.to_csv(INPUT_PATH, sep=';', index=False)
+            st.success("✅ Operação salva com sucesso!")
+            st.rerun() # Atualiza a tela automaticamente para limpar o form
 
 # =========================================================================== #
 # TELA PRINCIPAL: DASHBOARD
@@ -115,40 +144,42 @@ if INPUT_PATH.exists():
             st.divider() # Cria uma linha separadora elegante
             
             # --- 2. SEÇÃO DE GRÁFICOS E TABELA ---
-            # Divide a tela: Gráfico ocupa peso 1.5, Tabela ocupa peso 2.5
             col_grafico, col_tabela = st.columns([1.5, 2.5]) 
             
             with col_grafico:
                 st.markdown("#### Composição da Carteira")
-                # Cria um Gráfico de Rosca (Donut) interativo
-                fig = px.pie(
-                    df_final, 
-                    values='Valor_Atual', 
-                    names='Ticker', 
-                    hole=0.5, # Tamanho do furo no meio
-                    color_discrete_sequence=px.colors.sequential.Teal
-                )
-                # Remove fundo e ajusta margens do gráfico
+                # Gráfico agora é baseado no 'Ativo' genérico
+                fig = px.pie(df_final, values='Valor_Atual', names='Ativo', hole=0.5, color_discrete_sequence=px.colors.sequential.Teal)
                 fig.update_layout(margin=dict(t=20, b=20, l=0, r=0), paper_bgcolor="rgba(0,0,0,0)")
                 st.plotly_chart(fig, use_container_width=True)
                 
             with col_tabela:
                 st.markdown("#### Meus Ativos")
-                # Tabela estilizada
+                
+                # NOVO: Filtro Dinâmico!
+                filtro = st.radio("Filtrar por Classe:", ["Todas", "Renda Variável (Ações/FIIs)", "Renda Fixa"], horizontal=True)
+                
+                # Aplica o filtro no dataframe antes de exibir
+                if filtro != "Todas":
+                    df_exibicao = df_final[df_final['Classe'] == filtro]
+                else:
+                    df_exibicao = df_final
+
                 st.dataframe(
-                    df_final,
+                    df_exibicao, # Mostra o dataframe filtrado
                     use_container_width=True,
-                    hide_index=True, # Remove aqueles números 0, 1, 2 do lado esquerdo
+                    hide_index=True,
                     column_config={
                         "logourl": st.column_config.ImageColumn("Logo"),
-                        "Ticker": st.column_config.TextColumn("Ativo", width="small"),
+                        "Ativo": st.column_config.TextColumn("Ativo/Nome", width="medium"),
                         "Qtd_Cotas": st.column_config.NumberColumn("Qtd"),
-                        "Preco_Medio": st.column_config.NumberColumn("PM", format="R$ %.2f"),
+                        "Preco_Medio": st.column_config.NumberColumn("PM / Aporte", format="R$ %.2f"),
                         "regularMarketPrice": st.column_config.NumberColumn("Cotação", format="R$ %.2f"),
                         "Total_Investido": st.column_config.NumberColumn("Investido", format="R$ %.2f"),
                         "Valor_Atual": st.column_config.NumberColumn("Saldo Atual", format="R$ %.2f"),
                         "Lucro_Prejuizo_R$": st.column_config.NumberColumn("Retorno (R$)", format="R$ %.2f"),
-                        "Rentabilidade_%": st.column_config.NumberColumn("Rentab.", format="%.2f %%")
+                        "Rentabilidade_%": st.column_config.NumberColumn("Rentab.", format="%.2f %%"),
+                        "Classe": None # Esconde a coluna de classe da tabela para não poluir
                     }
                 )
                 
