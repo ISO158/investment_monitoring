@@ -35,26 +35,51 @@ with st.sidebar.form("nova_operacao"):
     submit = st.form_submit_button("Salvar Operação")
     
     if submit:
-        # Aqui você chama a lógica para salvar no historico_operacoes.csv
+        # 1. Cria a nova linha com as informações do formulário
+        nova_linha = pd.DataFrame([{
+            'Data': data,
+            'Ticker': ticker,
+            'Operacao': operacao,
+            'Quantidade': qtd,
+            'Preco_Unitario': preco,
+            'Taxas': taxas
+        }])
+        
+        # 2. Abre o histórico antigo e junta com a nova linha (ou cria um se não existir)
+        if INPUT_PATH.exists():
+            df_existente = pd.read_csv(INPUT_PATH, sep=';')
+            df_atualizado = pd.concat([df_existente, nova_linha], ignore_index=True)
+        else:
+            df_atualizado = nova_linha
+            
+        # 3. Salva no arquivo CSV!
+        df_atualizado.to_csv(INPUT_PATH, sep=';', index=False)
+        
         st.success(f"{qtd} cotas de {ticker} salvas com sucesso!")
 
 # --- 2. TELA PRINCIPAL: OUTPUT (O CARREGAMENTO DO BACKEND) ---
-st.subheader("Situação Atual da Carteira")
+# st.subheader("Situação Atual da Carteira")
 
-# Carrega o histórico (que acabou de ser atualizado)
-
-try:
-    df_historico = pd.read_csv(INPUT_PATH, sep=';') 
-    print("Colunas encontradas no CSV:", df_historico.columns.tolist())
+# =========================================================================== #
+# usando um if só para verificar o caminho e separação do csv
+if INPUT_PATH.exists():
+    df_historico = pd.read_csv(INPUT_PATH, sep=';')
     
-except FileNotFoundError:
-    print(f"Erro: O arquivo {INPUT_PATH} não existe. Crie a planilha com o histórico primeiro!")
-    exit()
+    # Verifica se o CSV não está apenas com os cabeçalhos vazios
+    if not df_historico.empty:
+        # Usa sua função matemática
+        df_carteira = calcular_posicao_atual(df_historico)
+        
+        # Exibe na tela usando o tamanho total do container
+        st.dataframe(df_carteira, use_container_width=True)
+    else:
+        st.info("O histórico está vazio. Cadastre uma operação ao lado.")
+else:
+    st.warning("Nenhum histórico encontrado. Cadastre a sua primeira operação na barra lateral!")
+
+# =========================================================================== #
 
 # Usa sua função matemática
 df_carteira = calcular_posicao_atual(df_historico)
-
-# Exibe na tela uma tabela lindona já formatada
-st.dataframe(df_carteira)
 
 # Opcional: Já gera os gráficos nativos do Streamlit aqui embaixo
