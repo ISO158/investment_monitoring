@@ -1,7 +1,6 @@
 Ativo,Classe,Qtd_Cotas,Total_Investido,Preco_Medio,Indexador_RF,Taxa_RF,Data_Aplicacao,regularMarketPrice,logourl,DY_%,Valor_Atual,Lucro_Prejuizo_R$,Rentabilidade_%
-Banco Itaú (CDB | Venc: 2028-08-31),Renda Fixa,1,1000.0,1000.0,CDI,105.0,2024-08-01,,https://ui-avatars.com/api/?name=CDI&background=0D8ABC&color=fff&length=4&font-size=0.35&bold=true,14.595000000000002,1321.308167831558,321.30816783155797,32.130816783155794
-Banco PicPay (CDB | Venc: 2028-08-31),Renda Fixa,1,1000.0,1000.0,IPCA+,105.0,2024-08-01,,https://ui-avatars.com/api/?name=IPCA%2B&background=0D8ABC&color=fff&length=4&font-size=0.35&bold=true,109.44,4535.477103478437,3535.477103478437,353.5477103478437
-Banco BMG (CDB | Venc: 2028-08-31),Renda Fixa,1,1000.0,1000.0,Pré-fixado,15.0,2024-08-01,,https://ui-avatars.com/api/?name=Pré-fixado&background=0D8ABC&color=fff&length=4&font-size=0.35&bold=true,15.0,1330.876258040456,330.8762580404559,33.087625804045594
-ITUB4,Renda Variável (Ações/FIIs),5,125.0,25.0,,0.0,,38.33,https://icons.brapi.dev/icons/ITUB4.svg,8.0,191.64999999999998,66.64999999999998,53.31999999999998
-VALE3,Renda Variável (Ações/FIIs),5,150.0,30.0,,0.0,,71.62,https://icons.brapi.dev/icons/VALE3.svg,8.0,358.1,208.10000000000002,138.73333333333335
-MGLU3,Renda Variável (Ações/FIIs),50,100.0,2.0,,0.0,,4.23,https://icons.brapi.dev/icons/MGLU3.svg,2.0,211.50000000000003,111.50000000000003,111.50000000000003
+MGLU3,Renda Variável (Ações/FIIs),4,8.0,2.0,,0.0,,4.28,https://icons.brapi.dev/icons/MGLU3.svg,1.8995327102803736,17.12,9.120000000000001,114.00000000000001
+ITUB4,Renda Variável (Ações/FIIs),10,350.0,35.0,,0.0,,38.19,https://icons.brapi.dev/icons/ITUB4.svg,9.428952605394082,381.9,31.899999999999977,9.114285714285709
+VALE3,Renda Variável (Ações/FIIs),5,144.5,28.9,,0.0,,71.55,https://icons.brapi.dev/icons/VALE3.svg,7.844155136268345,357.75,213.25,147.57785467128028
+PETR4,Renda Variável (Ações/FIIs),50,1944.0000000000002,38.88,,0.0,,42.6,https://icons.brapi.dev/icons/PETR4.svg,6.202743943661972,2130.0,185.99999999999977,9.567901234567888
+Banco BMG (CDB | Venc: 2029-08-31),Renda Fixa,1,1000.0,1000.0,CDI,105.0,2026-08-18,,https://ui-avatars.com/api/?name=CDI&background=0D8ABC&color=fff&length=4&font-size=0.35&bold=true,14.595000000000002,1000.0,0.0,0.0

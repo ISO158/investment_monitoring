@@ -22,40 +22,77 @@ OUTPUT_PATH = DATA_DIR / "carteira_atualizada.csv"
 # =========================================================================== #
 
 # Mantenha o seu BASE_URL intacto lá no topo caso use em outras partes do código
+# =========================================================================== #
+# FUNÇÕES CORE e API de dados das ações
+# =========================================================================== #
+
+load_dotenv()
 BASE_URL = "https://brapi.dev/api/v2"
 TOKEN = os.getenv("BRAPI_TOKEN")
 
 def get_stock_quote(symbols):
-    # 1. Usamos o endpoint principal que junta cotação e fundamentos
     tickers_str = ",".join(symbols)
-    url = f"https://brapi.dev/api/quote/{tickers_str}"
     
-    # 2. Solicitamos explicitamente o módulo de estatísticas
-    params = {
-        "token": TOKEN,
-        "modules": "defaultKeyStatistics" 
-    }
+    # 1. Busca Cotação Atual e Logo (Uma única chamada rápida para todos)
+    url_quote = f"https://brapi.dev/api/quote/{tickers_str}"
+    res_quote = requests.get(url_quote, params={"token": TOKEN})
+    res_quote.raise_for_status()
+    cotacoes = {acao['symbol']: acao for acao in res_quote.json().get('results', [])}
     
-    response = requests.get(url, params=params)
-    response.raise_for_status()
-
-    json_response = response.json()
-    resultados = json_response.get("results", [])
+    hoje = pd.Timestamp.today().normalize()
+    um_ano_atras = hoje - pd.DateOffset(years=1)
     
     dados_limpos = []
-    for acao in resultados:
-        # Pega as informações básicas de cotação e imagem
-        dado = {
-            'shortName': acao.get('shortName'),
-            'regularMarketPrice': acao.get('regularMarketPrice'),
-            'logourl': acao.get('logourl'),
-        }
+    
+    # 2. Processamento ATIVO por ATIVO
+    for symbol in symbols:
+        cotacao = cotacoes.get(symbol, {})
+        preco_atual = float(cotacao.get('regularMarketPrice', 0.0))
         
-        # 3. Extrai o DY de dentro do bloco defaultKeyStatistics
-        stats = acao.get('defaultKeyStatistics', {})
-        dado['dividendYield'] = stats.get('dividendYield', 0.0)
+        soma_dividendos = 0.0
         
-        dados_limpos.append(dado)
+        # 3. Fazemos a requisição de dividendos ESPECÍFICA para este ativo!
+        # 3. Fazemos a requisição de dividendos ESPECÍFICA para este ativo!
+        url_div = f"{BASE_URL}/stocks/dividends"
+        try:
+            res_div = requests.get(url_div, params={"symbols": symbol, "token": TOKEN})
+            
+            # Só avança se a API responder com Sucesso (Status 200)
+            if res_div.status_code == 200:
+                resultados_div = res_div.json().get('results', [])
+                if resultados_div:
+                    # A CORREÇÃO ESTÁ AQUI: Navegando na estrutura real do JSON que você descobriu!
+                    dados_ativo = resultados_div[0].get('data', {})
+                    lista_div = dados_ativo.get('cashDividends', [])
+                    
+                    # O "Motor do StatusInvest": Varre e soma usando a Data Com (lastDatePrior)
+                    for div in lista_div:
+                        # Mudamos a prioridade! O mercado usa a Data Com (lastDatePrior) como referência real de 12 meses
+                        data_str = div.get('lastDatePrior') or div.get('paymentDate') or div.get('approvedOn')
+                        
+                        if data_str:
+                            try:
+                                data_limpa = str(data_str)[:10] 
+                                data_evento = pd.to_datetime(data_limpa)
+                                
+                                if data_evento >= um_ano_atras:
+                                    valor = div.get('rate')
+                                    if valor is not None:
+                                        soma_dividendos += float(str(valor).replace(',', '.'))
+                            except Exception:
+                                continue
+        except Exception as e:
+            print(f"Erro interno ao buscar dividendos de {symbol}: {e}")
+            
+        # 4. Cálculo Raiz: A matemática real e precisa do DY
+        dy_final = (soma_dividendos / preco_atual) if preco_atual > 0 else 0.0
+        
+        dados_limpos.append({
+            'shortName': symbol,  
+            'regularMarketPrice': preco_atual,
+            'logourl': cotacao.get('logourl'),
+            'dividendYield': dy_final 
+        })
         
     return dados_limpos
 
