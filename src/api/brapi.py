@@ -34,6 +34,41 @@ def get_stock_quote(symbols):
     return [result["data"] for result in data["results"]]
 
 
-data = get_stock_quote(["PETR4", "VALE3", "ITUB4"])
+def get_stock_dy(symbols):
+    url = f"{BASE_URL}/stocks/statistics"
 
-print(data)
+    params = {
+        "symbols": ",".join(symbols),
+        "mode": "current"
+    }
+
+    headers = {
+        "Authorization": f"Bearer {TOKEN}"
+    }
+
+    response = requests.get(
+        url,
+        params=params,
+        headers=headers
+    )
+
+    response.raise_for_status()
+
+    data = response.json()
+
+    return [
+        {
+            "symbol": result["symbol"],
+            "dividendYield": result["data"].get("dividendYield")
+        }
+        for result in data["results"]
+    ]
+
+response = requests.get(
+    "https://brapi.dev/api/v2/stocks/statistics",
+    params={"symbols": "BRAP4", "mode": "current"},
+    headers={"Authorization": f"Bearer {TOKEN}"}
+)
+
+print(response.status_code)
+print(response.text)
