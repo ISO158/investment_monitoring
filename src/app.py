@@ -22,20 +22,28 @@ INPUT_PATH = DATA_DIR / "historico_operacoes.csv"
 OUTPUT_PATH = DATA_DIR / "carteira_atualizada.csv"
 
 # =========================================================================== #
-# BARRA LATERAL: INPUT DE DADOS DINÂMICO
+# BARRA LATERAL: INPUT DE DADOS DINÂMICO (ÁREA ISOLADA)
 # =========================================================================== #
-st.sidebar.header("Cadastrar Operação")
 
-# A escolha da Classe
-classe_ativo = st.sidebar.radio(
-    "Classe do Investimento", 
-    ["Renda Variável (Ações/FIIs)", "Renda Fixa"]
-)
+@st.fragment
+def formulario_dinamico():
+    # Tudo dentro desta função roda em uma "bolha" independente da tela principal!
+    st.header("Cadastrar Operação")
 
-with st.sidebar.form("nova_operacao"):
-    data = st.date_input("Data da Operação")
-    
-    # Adicionamos 'Liquidez_Diaria' ao dicionário base
+    # Controle Mágico para limpar campos
+    if "form_id" not in st.session_state:
+        st.session_state.form_id = 0
+    f_id = st.session_state.form_id
+
+    # A escolha da Classe
+    classe_ativo = st.radio(
+        "Classe do Investimento", 
+        ["Renda Variável (Ações/FIIs)", "Renda Fixa"],
+        key=f"classe_{f_id}"
+    )
+
+    data = st.date_input("Data da Operação", key=f"data_{f_id}")
+
     dados_operacao = {
         'Data': data, 'Classe': classe_ativo, 'Ticker': None, 'Operacao': None,
         'Quantidade': 0, 'Preco_Unitario': 0.0, 'Taxas': 0.0,
@@ -45,18 +53,18 @@ with st.sidebar.form("nova_operacao"):
 
     # --- CAMPOS PARA RENDA VARIÁVEL ---
     if classe_ativo == "Renda Variável (Ações/FIIs)":
-        dados_operacao['Ticker'] = st.text_input("Ticker (ex: ITUB4, KNRI11)", max_chars=6).upper()
-        dados_operacao['Operacao'] = st.selectbox("Operação", ["Compra", "Venda"])
-        dados_operacao['Quantidade'] = st.number_input("Quantidade", min_value=1)
-        dados_operacao['Preco_Unitario'] = st.number_input("Preço Unitário (R$)", min_value=0.01)
-        dados_operacao['Taxas'] = st.number_input("Taxas (R$)", min_value=0.0)
+        dados_operacao['Ticker'] = st.text_input("Ticker (ex: ITUB4, KNRI11)", max_chars=6, key=f"tkr_{f_id}").upper()
+        dados_operacao['Operacao'] = st.selectbox("Operação", ["Compra", "Venda"], key=f"op_rv_{f_id}")
+        dados_operacao['Quantidade'] = st.number_input("Quantidade", min_value=1, value=1, key=f"qtd_{f_id}")
+        dados_operacao['Preco_Unitario'] = st.number_input("Preço Unitário (R$)", min_value=0.01, value=10.00, step=1.00, key=f"preco_rv_{f_id}")
+        dados_operacao['Taxas'] = st.number_input("Taxas (R$)", min_value=0.0, value=0.0, step=0.50, key=f"taxa_rv_{f_id}")
 
     # --- CAMPOS PARA RENDA FIXA ---
     elif classe_ativo == "Renda Fixa":
         taxas_macro = get_taxas_bcb()
-        dados_operacao['Nome_RF'] = st.text_input("Nome (ex: CDB Banco Itaú)")
+        dados_operacao['Nome_RF'] = st.text_input("Nome (ex: CDB Banco Itaú)", key=f"nome_rf_{f_id}")
         dados_operacao['Operacao'] = "Aplicação" 
-        dados_operacao['Tipo_RF'] = st.selectbox("Tipo", ["CDB", "LCI", "LCA", "Tesouro"])
+        dados_operacao['Tipo_RF'] = st.selectbox("Tipo", ["CDB", "LCI", "LCA", "Tesouro"], key=f"tipo_rf_{f_id}")
 
         labels_indexador = {
             "CDI": f"CDI ({taxas_macro['CDI']}%)",
@@ -67,39 +75,43 @@ with st.sidebar.form("nova_operacao"):
         dados_operacao['Indexador_RF'] = st.selectbox(
             "Indexador", 
             options=["CDI", "IPCA+", "Pré-fixado", "Selic"],
-            format_func=lambda x: labels_indexador[x]
+            format_func=lambda x: labels_indexador[x],
+            key=f"idx_rf_{f_id}"
         )
 
-        dados_operacao['Taxa_RF'] = st.number_input("Taxa Contratada (%)", min_value=0.0, format="%.2f")
-        dados_operacao['Preco_Unitario'] = st.number_input("Valor Aplicado (R$)", min_value=0.01)
-        dados_operacao['Quantidade'] = 1 
-        dados_operacao['Vencimento_RF'] = st.date_input("Data de Vencimento")
-        # NOVO CAMPO: Checkbox de Liquidez
-        dados_operacao['Liquidez_Diaria'] = st.checkbox("Liquidez Diária")
+        idx_escolhido = dados_operacao['Indexador_RF']
+        
+        if idx_escolhido in ["CDI", "Selic"]:
+            lbl_taxa, val_taxa, step_taxa, dica = f"Taxa Contratada (% do {idx_escolhido})", 100.0, 1.0, f"Ex: Para 110% do {idx_escolhido}, digite 110"
+        elif idx_escolhido == "IPCA+":
+            lbl_taxa, val_taxa, step_taxa, dica = "Taxa Adicional (IPCA + %)", 5.0, 0.5, "Ex: Para IPCA + 5.5%, digite apenas 5.5"
+        else: # Pré-fixado
+            lbl_taxa, val_taxa, step_taxa, dica = "Taxa Anual (%)", 10.0, 0.5, "Ex: Para 12% ao ano, digite 12"
 
-    submit = st.form_submit_button("Salvar Operação")
-    
+        dados_operacao['Taxa_RF'] = st.number_input(lbl_taxa, min_value=0.0, value=val_taxa, step=step_taxa, format="%.2f", help=dica, key=f"taxa_rf_val_{f_id}")
+        dados_operacao['Preco_Unitario'] = st.number_input("Valor Aplicado (R$)", min_value=0.01, value=100.00, step=10.00, key=f"preco_rf_{f_id}")
+        dados_operacao['Quantidade'] = 1 
+        dados_operacao['Vencimento_RF'] = st.date_input("Data de Vencimento", key=f"venc_rf_{f_id}")
+        dados_operacao['Liquidez_Diaria'] = st.checkbox("Liquidez Diária", key=f"liq_rf_{f_id}")
+
+    st.divider()
+    submit = st.button("Salvar Operação", type="primary", use_container_width=True, key=f"btn_salvar_{f_id}")
+
     if submit:
         ativo_valido = True
         
-        # 1. VALIDAÇÃO: Se for ação, testa na API antes de salvar!
         if classe_ativo == "Renda Variável (Ações/FIIs)":
             ticker_digitado = dados_operacao['Ticker']
-            
-            # Impede de salvar se o usuário não digitar nada
             if not ticker_digitado:
                 ativo_valido = False
                 st.error("🚨 Você precisa digitar um Ticker válido!")
             else:
                 try:
-                    # Passa o ticker digitado na função.
-                    # get_stock_quote vai lançar uma exceção se a Brapi devolver 404 (Not Found)
                     get_stock_quote([ticker_digitado])
                 except Exception:
                     ativo_valido = False
                     st.error(f"🚨 Ticker '{ticker_digitado}' inválido ou não encontrado na B3! A operação NÃO foi salva.")
         
-        # 2. SALVAMENTO: Só executa se passar no teste (ou se for Renda Fixa)
         if ativo_valido:
             nova_linha = pd.DataFrame([dados_operacao])
             
@@ -111,7 +123,13 @@ with st.sidebar.form("nova_operacao"):
                 
             df_atualizado.to_csv(INPUT_PATH, sep=';', index=False)
             st.success("✅ Operação salva com sucesso!")
-            st.rerun() # Atualiza a tela automaticamente para limpar o form
+            
+            st.session_state.form_id += 1
+            st.rerun() # Como a tabela precisa puxar o novo CSV salvo, chamamos o rerun para atualizar o Dashboard
+
+# Chamamos a nossa "bolha" mágica para dentro da barra lateral
+with st.sidebar:
+    formulario_dinamico()
 
 # =========================================================================== #
 # TELA PRINCIPAL: DASHBOARD
@@ -160,17 +178,16 @@ if INPUT_PATH.exists():
                 "Selecione a visualização:", 
                 ["Todas", "Renda Variável (Ações/FIIs)", "Renda Fixa"], 
                 horizontal=True,
-                label_visibility="collapsed" # Esconde o texto do título para ficar mais clean
+                label_visibility="collapsed",
+                key="filtro_tabela"
             )
 
             # 1. Configura a Lógica do Filtro: Qual fatia do bolo vamos mostrar?
             if filtro == "Todas":
                 df_exibicao = df_final
-                # Visão Macro: Agrupa o gráfico pela Classe de ativo
                 coluna_agrupamento = 'Classe' 
             else:
                 df_exibicao = df_final[df_final['Classe'] == filtro]
-                # Visão Micro: Agrupa o gráfico pelo Nome individual do Ativo
                 coluna_agrupamento = 'Ativo'
 
             # ==========================================================
