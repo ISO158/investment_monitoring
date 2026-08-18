@@ -1,0 +1,8 @@
+Ativo,Classe,Qtd_Cotas,Total_Investido,Preco_Medio,Indexador_RF,Taxa_RF,regularMarketPrice,logourl,Valor_Atual,Lucro_Prejuizo_R$,Rentabilidade_%
+CDB Test de Rendimento,Renda Fixa,1,1000.0,1000.0,CDI,120.0,,https://ui-avatars.com/api/?name=CDI&background=0D8ABC&color=fff&length=4&font-size=0.35&bold=true,1000.0,0.0,0.0
+ITUB4,Renda Variável (Ações/FIIs),5,100.0,20.0,,0.0,38.38,https://icons.brapi.dev/icons/ITUB4.svg,191.9,91.9,91.9
+VALE3,Renda Variável (Ações/FIIs),10,350.0,35.0,,0.0,71.41,https://icons.brapi.dev/icons/VALE3.svg,714.0999999999999,364.0999999999999,104.02857142857141
+MGLU3,Renda Variável (Ações/FIIs),20,40.0,2.0,,0.0,4.23,https://icons.brapi.dev/icons/MGLU3.svg,84.60000000000001,44.60000000000001,111.50000000000003
+PETR4,Renda Variável (Ações/FIIs),12,680.0,56.666666666666664,,0.0,42.47,https://icons.brapi.dev/icons/PETR4.svg,509.64,-170.36,-25.05294117647059
+CDB Banco do Brasil,Renda Fixa,1,1000.0,1000.0,CDI,100.0,,https://ui-avatars.com/api/?name=CDI&background=0D8ABC&color=fff&length=4&font-size=0.35&bold=true,1000.0,0.0,0.0
+IPCA+ 2029,Renda Fixa,1,500.0,500.0,IPCA+,90.0,,https://ui-avatars.com/api/?name=IPCA%2B&background=0D8ABC&color=fff&length=4&font-size=0.35&bold=true,500.0,0.0,0.0
