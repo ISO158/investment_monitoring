@@ -9,3 +9,8 @@ Data;Classe;Ticker;Operacao;Quantidade;Preco_Unitario;Taxas;Nome_RF;Tipo_RF;Inde
 2026-08-18;Renda Variável (Ações/FIIs);ITUB4;Compra;3;35.0;0.0;;;;0.0;;False
 2026-08-18;Renda Variável (Ações/FIIs);ITUB4;Compra;3;28.0;0.0;;;;0.0;;False
 2026-08-18;Renda Fixa;;Aplicação;1;90.0;0.0;Test 1;CDB;IPCA+;5.0;2026-08-18;False
+2026-08-18;Renda Fixa;;Aplicação;0;100.0;0.0;Banco BMG;CDB;IPCA+;5.5;2026-08-31;False
+2026-08-18;Renda Fixa;;Aplicação;1;500.0;0.0;Teste 123;CDB;IPCA+;5.5;2029-08-01;False
+2024-08-08;Renda Variável (Ações/FIIs);ITUB4;Compra;50;35.0;0.0;;;;0.0;;False
+2025-06-05;Renda Variável (Ações/FIIs);ITUB4;Compra;5;20.0;0.0;;;;0.0;;False
+2025-08-01;Renda Variável (Ações/FIIs);ITUB4;Venda;1;30.0;0.0;;;;0.0;;False

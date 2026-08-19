@@ -143,7 +143,12 @@ def calcular_posicao_atual(df_ops):
         if op in ['COMPRA', 'APLICAÇÃO', 'APLICACAO']:
             pos['Qtd_Cotas'] += qtd
             pos['Total_Investido'] += (qtd * preco) + taxas
-            pos['Preco_Medio'] = pos['Total_Investido'] / pos['Qtd_Cotas']
+            
+            # PROTEÇÃO: Só calcula o preço médio se a quantidade for maior que zero
+            if pos['Qtd_Cotas'] > 0:
+                pos['Preco_Medio'] = pos['Total_Investido'] / pos['Qtd_Cotas']
+            else:
+                pos['Preco_Medio'] = 0.0
             
         elif op in ['VENDA', 'RESGATE']:
             pos['Qtd_Cotas'] -= qtd
@@ -256,6 +261,38 @@ def gerar_carteira_atualizada(df_historico):
     
     df_final.to_csv(OUTPUT_PATH, index=False)
     return df_final
+
+
+# =========================================================================== #
+# Função para obter o histórico de preços da ação
+# =========================================================================== #
+
+def get_stock_history(ticker, range_period="5y"):
+    """Busca o histórico de fechamento diário da ação para plotar a linha do tempo."""
+    url = f"https://brapi.dev/api/quote/{ticker}"
+    try:
+        res = requests.get(url, params={"range": range_period, "interval": "1d", "token": TOKEN})
+        res.raise_for_status()
+        resultados = res.json().get('results', [])
+        
+        if resultados:
+            historico = resultados[0].get('historicalDataPrice', [])
+            df_hist = pd.DataFrame(historico)
+            
+            if not df_hist.empty and 'date' in df_hist.columns:
+                # Converte o timestamp (segundos) da API para uma data legível
+                df_hist['Data'] = pd.to_datetime(df_hist['date'], unit='s')
+                # Remove o fuso horário para bater perfeitamente com os dados do seu CSV
+                df_hist['Data'] = df_hist['Data'].dt.tz_localize(None) 
+                df_hist.rename(columns={'close': 'Fechamento'}, inplace=True)
+                
+                return df_hist[['Data', 'Fechamento']]
+                
+    except Exception as e:
+        print(f"Erro ao buscar histórico de {ticker}: {e}")
+        
+    return pd.DataFrame()
+
 
 # =========================================================================== #
 # Coletando dados do CDI, Selic e IPCA acumulado
