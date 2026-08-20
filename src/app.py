@@ -39,7 +39,7 @@ def formulario_dinamico():
     )
 
     # -----------------------------------------------------------------------
-    # 1. CABEÇALHO DINÂMICO (Fora do form - Atualiza na hora)
+    # 1. CABEÇALHO DINÂMICO (atualiza de maneira dinâmica)
     # -----------------------------------------------------------------------
     classe_ativo = st.radio("Classe do Investimento", ["Renda Variável (Ações/FIIs)", "Renda Fixa"])
     
