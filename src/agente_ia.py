@@ -51,29 +51,35 @@ def gerar_analise_ia(df_carteira):
     {dados_texto}
     """
 
-    # 4. Chamada ao Modelo (Com Sistema de Fallback)
-    try:
-        # TENTATIVA 1: O modelo principal e mais inteligente
-        response = client.models.generate_content(
-            model='gemini-3.7-flash', 
-            contents=prompt
-        )
-        return response.text
-        
-    except Exception as e:
-        # Se o erro for de congestionamento (503), acionamos o Plano B
-        if "503" in str(e) or "UNAVAILABLE" in str(e) or "high demand" in str(e).lower():
-            try:
-                # TENTATIVA 2: O modelo "Lite" (Super rápido e com muita disponibilidade)
-                response_fallback = client.models.generate_content(
-                    model='gemini-flash-lite-latest',
-                    contents=prompt
-                )
-                return response_fallback.text + "\n\n*(Nota: Análise gerada pelo modelo Lite devido à alta demanda nos servidores principais).* "
+    # 4. Chamada ao Modelo (Cascade Fallback Inteligente de 3 Níveis) - gratuito
+    modelos_prioridade = [
+        'gemini-3.7-flash',           # 1º Opção: O mais avançado
+        'gemini-2.5-flash',           # 2º Opção: Muito robusto e maduro
+        'gemini-flash-lite-latest'    # 3º Opção: O "fusca" que nunca quebra
+    ]
+    
+    for nome_modelo in modelos_prioridade:
+        try:
+            response = client.models.generate_content(
+                model=nome_modelo,
+                contents=prompt
+            )
+            
+            # Se usou algum fallback, avisa o usuário no texto
+            nota = ""
+            if nome_modelo != modelos_prioridade[0]:
+                nota = f"\n\n*(Nota: Análise gerada pelo modelo {nome_modelo} devido à alta demanda nos servidores principais).* "
                 
-            except Exception as e_fallback:
-                return f"🚨 Os servidores do Google estão completamente sobrecarregados no momento. Tente novamente em alguns minutos."
-        
-        # Se for qualquer outro erro bizarro, mostra na tela
-        else:
-            return f"🚨 Erro interno no Agente IA: {e}"
+            return response.text + nota
+            
+        except Exception as e:
+            # Se o erro for de congestionamento, ignoramos e o 'for' passa para o próximo modelo da lista
+            if "503" in str(e) or "UNAVAILABLE" in str(e) or "high demand" in str(e).lower():
+                continue
+            
+            # Se for um erro real (ex: falta de internet, erro na tabela), paramos tudo e avisamos
+            else:
+                return f"🚨 Erro interno no Agente IA ({nome_modelo}): {e}"
+                
+    # Se o loop terminar e todos os 3 derem erro de congestionamento:
+    return "🚨 Todos os servidores da inteligência artificial estão sobrecarregados no momento. Tente novamente em alguns minutos."

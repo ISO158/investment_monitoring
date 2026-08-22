@@ -8,7 +8,7 @@ from plotly.subplots import make_subplots
 import requests
 
 # Atualize a linha de importação do backend para puxar a função get_stock_history
-from backend import gerar_carteira_atualizada, get_taxas_bcb, get_stock_quote, get_stock_history 
+from backend import gerar_carteira_atualizada, get_taxas_bcb, get_stock_quote, get_stock_history
 from pathlib import Path
 
 # Importa o cérebro da IA de outro lugar!
@@ -209,7 +209,7 @@ if INPUT_PATH.exists():
 
             # Output do Agente de IA - Gemini
             with col_ai:
-                st.markdown("##### 🤖 IA Analista (Gemini)")
+                st.markdown("##### Agente de IA (Gemini)")
                 
                 # 1. Cria a variável na memória se ela não existir
                 if "relatorio_ia" not in st.session_state:
@@ -222,7 +222,7 @@ if INPUT_PATH.exists():
                         
                 # 2. Renderiza a resposta SEMPRE que houver algo na memória!
                 if st.session_state.relatorio_ia:
-                    with st.expander("📊 Relatório Inteligente Aberto", expanded=True):
+                    with st.expander(" Relatório Inteligente Aberto", expanded=True):
                         st.write(st.session_state.relatorio_ia)
                 else:
                     st.info(
@@ -303,7 +303,7 @@ if INPUT_PATH.exists():
                         return ['' for _ in row]
 
                     df_styled = df_exibicao.style.apply(colorir_linhas, axis=1)
-                    st.caption("👆 *Dica: Clique em qualquer linha da tabela abaixo para ver o histórico detalhado do ativo.*")
+                    st.caption(" *Dica: Clique em qualquer linha da tabela abaixo para ver o histórico detalhado do ativo.*")
                     
                     evento_tabela = st.dataframe(
                         df_styled, use_container_width=True, hide_index=True, column_config=col_config,
@@ -319,7 +319,7 @@ if INPUT_PATH.exists():
                     ativo_clicado = df_exibicao.iloc[idx_linha]['Ativo']
                     classe_clicada = df_exibicao.iloc[idx_linha]['Classe']
                     
-                    st.markdown(f"### 🔎 Raio-X: **{ativo_clicado}**")
+                    st.markdown(f"### **{ativo_clicado}**")
                     
                     if classe_clicada == "Renda Variável (Ações/FIIs)":
                         df_hist_ativo = df_historico_frag[

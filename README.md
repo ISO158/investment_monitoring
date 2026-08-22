@@ -47,6 +47,7 @@ investment_monitoring/
 │
 ├── src/
 │   ├── app.py                        # Interface visual (Streamlit Front-end)
+|   ├── agente_ia.py                  # Aplicação agente de IA (Gemini API)
 │   └── backend.py                    # Lógica de negócio, cálculos e APIs (Core)
 │
 ├── notebooks/                        # Ambientes de teste e experimentação (.ipynb)
