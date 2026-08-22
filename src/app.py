@@ -3,13 +3,16 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
-import plotly.graph_objects as go          # <--- NOVO: Controle fino de gráficos
-from plotly.subplots import make_subplots  # <--- NOVO: Permite criar o Eixo Secundário
+import plotly.graph_objects as go          
+from plotly.subplots import make_subplots 
 import requests
 
 # Atualize a linha de importação do backend para puxar a função get_stock_history
 from backend import gerar_carteira_atualizada, get_taxas_bcb, get_stock_quote, get_stock_history 
 from pathlib import Path
+
+# Importa o cérebro da IA de outro lugar!
+from agente_ia import gerar_analise_ia
 
 # =========================================================================== #
 # layout="wide" faz o site ocupar a tela toda, estilo StatusInvest
@@ -206,16 +209,24 @@ if INPUT_PATH.exists():
                                        yaxis_title="Evolução (Base 100)", xaxis_title="")
                 st.plotly_chart(fig_evol, use_container_width=True)
 
+            # Output do Agente de IA - Gemini
             with col_ai:
-                # Região demarcada para o futuro Agente IA
-                st.markdown("##### Status da Carteira (Em Breve)")
-                st.info(
-                    "**Espaço Reservado**\n\n"
-                    "O nosso futuro Agente conectará LLMs para:\n"
-                    "✅ Avaliar o Risco/Retorno da carteira.\n"
-                    "✅ Comparar o desempenho com S&P500 e Dólar.\n"
-                    "✅ Resumir notícias recentes dos seus ativos."
-                )
+                st.markdown("##### 🤖 IA Analista (Gemini)")
+                
+                # O botão dispara o Agente
+                if st.button("Gerar Análise da Carteira", type="primary", use_container_width=True):
+                    with st.spinner("O Agente está avaliando seus ativos..."):
+                        resposta_ia = gerar_analise_ia(df_final)
+                        
+                        # Usamos um container visual bonito para a resposta
+                        with st.expander("📊 Relatório Inteligente Aberto", expanded=True):
+                            st.write(resposta_ia)
+                else:
+                    st.info(
+                        "**Agente Pronto!**\n\n"
+                        "Clique no botão acima para o Gemini cruzar a rentabilidade, "
+                        "o DY e a alocação dos seus ativos e gerar insights."
+                    )
             
             st.divider()
 
