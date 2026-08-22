@@ -6,5 +6,5 @@ streamlit
 plotly
 
 # API para agente de IA, estou usando o Gemini.
-google-generativeai
+google-genai
 tabulate

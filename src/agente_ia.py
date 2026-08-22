@@ -3,22 +3,25 @@
 # Estou usando a API do Gemini, armazenada na .env.
 
 import os
-import google.generativeai as genai
+from google import genai
 from dotenv import load_dotenv
 
-# Carrega as variáveis de ambiente (onde está a GEMINI_API_KEY)
+# Carrega as variáveis de ambiente
 load_dotenv()
 
-# Configuração da API do Gemini
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+
+# Inicializa o novo Cliente Oficial do Google
 if GEMINI_API_KEY:
-    genai.configure(api_key=GEMINI_API_KEY)
+    client = genai.Client(api_key=GEMINI_API_KEY)
+else:
+    client = None
 
 def gerar_analise_ia(df_carteira):
     """
     Recebe o DataFrame da carteira e retorna um relatório de texto gerado pelo LLM.
     """
-    if not GEMINI_API_KEY:
+    if not client:
         return "🚨 Chave da API do Gemini não encontrada no arquivo .env!"
     
     if df_carteira.empty:
@@ -32,7 +35,7 @@ def gerar_analise_ia(df_carteira):
     # 2. Transforma o DataFrame em uma tabela Markdown
     dados_texto = resumo.to_markdown(index=False)
 
-    # 3. Engenharia de Prompt (Fica isolada aqui, fácil de editar futuramente)
+    # 3. Engenharia de Prompt 
     prompt = f"""
     Você é um Analista de Investimentos Quantitativo Sênior. 
     Analise a tabela abaixo representando a carteira atual de um investidor e faça um diagnóstico rápido.
@@ -48,11 +51,29 @@ def gerar_analise_ia(df_carteira):
     {dados_texto}
     """
 
-    # 4. Chamada ao Modelo
+    # 4. Chamada ao Modelo (Com Sistema de Fallback)
     try:
-        model = genai.GenerativeModel('gemini-1.5-flash')
-        response = model.generate_content(prompt)
+        # TENTATIVA 1: O modelo principal e mais inteligente
+        response = client.models.generate_content(
+            model='gemini-3.7-flash', 
+            contents=prompt
+        )
         return response.text
+        
     except Exception as e:
-        return f"🚨 Erro de conexão com o Agente IA: {e}"
-
+        # Se o erro for de congestionamento (503), acionamos o Plano B
+        if "503" in str(e) or "UNAVAILABLE" in str(e) or "high demand" in str(e).lower():
+            try:
+                # TENTATIVA 2: O modelo "Lite" (Super rápido e com muita disponibilidade)
+                response_fallback = client.models.generate_content(
+                    model='gemini-flash-lite-latest',
+                    contents=prompt
+                )
+                return response_fallback.text + "\n\n*(Nota: Análise gerada pelo modelo Lite devido à alta demanda nos servidores principais).* "
+                
+            except Exception as e_fallback:
+                return f"🚨 Os servidores do Google estão completamente sobrecarregados no momento. Tente novamente em alguns minutos."
+        
+        # Se for qualquer outro erro bizarro, mostra na tela
+        else:
+            return f"🚨 Erro interno no Agente IA: {e}"
