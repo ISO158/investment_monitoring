@@ -3,13 +3,16 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
-import plotly.graph_objects as go          # <--- NOVO: Controle fino de gráficos
-from plotly.subplots import make_subplots  # <--- NOVO: Permite criar o Eixo Secundário
+import plotly.graph_objects as go          
+from plotly.subplots import make_subplots 
 import requests
 
 # Atualize a linha de importação do backend para puxar a função get_stock_history
 from backend import gerar_carteira_atualizada, get_taxas_bcb, get_stock_quote, get_stock_history 
 from pathlib import Path
+
+# Importa o cérebro da IA de outro lugar!
+from agente_ia import gerar_analise_ia
 
 # =========================================================================== #
 # layout="wide" faz o site ocupar a tela toda, estilo StatusInvest
@@ -109,7 +112,6 @@ def formulario_dinamico():
             
             dados_operacao['Liquidez_Diaria'] = st.checkbox("Possui Liquidez Diária?")
 
-        st.divider()
         submit = st.form_submit_button("Salvar Operação", type="primary", use_container_width=True)
 
     # -----------------------------------------------------------------------
@@ -185,7 +187,6 @@ if INPUT_PATH.exists():
             # ==========================================================
             # --- NOVO: 2. EVOLUÇÃO HISTÓRICA E AGENTE IA ---
             # ==========================================================
-            # st.markdown("### 📈 Evolução e Análise Inteligente")
             col_evol, col_ai = st.columns([2.5, 1.5])
             
             with col_evol:
@@ -206,226 +207,173 @@ if INPUT_PATH.exists():
                                        yaxis_title="Evolução (Base 100)", xaxis_title="")
                 st.plotly_chart(fig_evol, use_container_width=True)
 
+            # Output do Agente de IA - Gemini
             with col_ai:
-                # Região demarcada para o futuro Agente IA
-                st.markdown("##### Status da Carteira (Em Breve)")
-                st.info(
-                    "**Espaço Reservado**\n\n"
-                    "O nosso futuro Agente conectará LLMs para:\n"
-                    "✅ Avaliar o Risco/Retorno da carteira.\n"
-                    "✅ Comparar o desempenho com S&P500 e Dólar.\n"
-                    "✅ Resumir notícias recentes dos seus ativos."
-                )
+                st.markdown("##### 🤖 IA Analista (Gemini)")
+                
+                # 1. Cria a variável na memória se ela não existir
+                if "relatorio_ia" not in st.session_state:
+                    st.session_state.relatorio_ia = None
+                    
+                # O botão agora apenas SALVA a resposta na memória
+                if st.button("Gerar Análise da Carteira", type="primary", use_container_width=True):
+                    with st.spinner("O Agente está avaliando seus ativos..."):
+                        st.session_state.relatorio_ia = gerar_analise_ia(df_final)
+                        
+                # 2. Renderiza a resposta SEMPRE que houver algo na memória!
+                if st.session_state.relatorio_ia:
+                    with st.expander("📊 Relatório Inteligente Aberto", expanded=True):
+                        st.write(st.session_state.relatorio_ia)
+                else:
+                    st.info(
+                        "**Agente Pronto!**\n\n"
+                        "Clique no botão acima para o Gemini cruzar a rentabilidade, "
+                        "o DY e a alocação dos seus ativos e gerar insights."
+                    )
             
             st.divider()
 
             # ==========================================================
-            # --- 3. SEÇÃO DE FILTROS GLOBAIS ---
+            # --- SEÇÃO INFERIOR ISOLADA (NÃO RECARREGA A TELA TODA) ---
             # ==========================================================
-            filtro = st.radio(
-                "Selecione a visualização:", 
-                ["Todas", "Renda Variável (Ações/FIIs)", "Renda Fixa"], 
-                horizontal=True,
-                label_visibility="collapsed",
-                key="filtro_tabela"
-            )
-
-            if filtro == "Todas":
-                df_exibicao = df_final
-                coluna_agrupamento = 'Classe' 
-            else:
-                df_exibicao = df_final[df_final['Classe'] == filtro]
-                coluna_agrupamento = 'Ativo'
-
-            # ==========================================================
-            # --- 4. SEÇÃO DE GRÁFICOS E TABELA INTERATIVA ---
-            # ==========================================================
-            col_grafico, col_tabela = st.columns([1.5, 2.5]) 
-            
-            with col_grafico:
-                if df_exibicao['Valor_Atual'].sum() > 0:
-                    fig = px.pie(
-                        df_exibicao, 
-                        values='Valor_Atual', 
-                        names=coluna_agrupamento,
-                        hole=0.45, 
-                        color_discrete_sequence=px.colors.sequential.Teal
-                    )
-                    fig.update_traces(textposition='inside', textinfo='percent')
-                    fig.update_layout(
-                        margin=dict(t=10, b=10, l=0, r=0), 
-                        paper_bgcolor="rgba(0,0,0,0)",
-                        showlegend=True,
-                        legend=dict(orientation="h", yanchor="top", y=-0.1, xanchor="center", x=0.5)
-                    )
-                    st.plotly_chart(fig, use_container_width=True)
-                else:
-                    st.info("Nenhum saldo para exibir neste filtro.")
+            @st.fragment
+            def painel_interativo_ativos(df_final_frag, df_historico_frag):
                 
-            with col_tabela:
-                col_config = {
-                    "logourl": st.column_config.ImageColumn("Logo"),
-                    "Ativo": st.column_config.TextColumn("Ativo/Nome", width="medium"),
-                    "Qtd_Cotas": st.column_config.NumberColumn("Qtd"),
-                    "Preco_Medio": st.column_config.NumberColumn("PM / Aporte", format="R$ %.2f"),
-                    "Total_Investido": st.column_config.NumberColumn("Investido", format="R$ %.2f"),
-                    "Valor_Atual": st.column_config.NumberColumn("Saldo Atual", format="R$ %.2f"),
-                    "Lucro_Prejuizo_R$": st.column_config.NumberColumn("Retorno (R$)", format="R$ %.2f"),
-                    "Rentabilidade_%": st.column_config.NumberColumn("Rentab.", format="%.2f %%"),
-                    "DY_%": st.column_config.NumberColumn("DY (12m)", format="%.2f %%"),
-                    "Classe": None,         
-                    "Indexador_RF": None    
-                }
-                
-                if filtro == "Todas":
-                    col_config["regularMarketPrice"] = None
-                    col_config["Taxa_RF"] = None
-                    col_config["DY_%"] = None 
-                elif filtro == "Renda Variável (Ações/FIIs)":
-                    col_config["regularMarketPrice"] = st.column_config.NumberColumn("Cotação", format="R$ %.2f")
-                    col_config["Taxa_RF"] = None
-                elif filtro == "Renda Fixa":
-                    col_config["regularMarketPrice"] = None
-                    col_config["Taxa_RF"] = st.column_config.NumberColumn("Taxa Contratada", format="%.2f %%")
-                    col_config["DY_%"] = None 
-
-                def colorir_linhas(row):
-                    rentab = row['Rentabilidade_%']
-                    if rentab > 0:
-                        color = 'rgba(76, 175, 80, 0.15)' 
-                    elif rentab < 0:
-                        color = 'rgba(244, 67, 54, 0.15)' 
-                    else:
-                        color = '' 
-                    return [f'background-color: {color}' for _ in row]
-
-                df_styled = df_exibicao.style.apply(colorir_linhas, axis=1)
-
-                st.caption("*Clique em qualquer linha da tabela abaixo para ver o histórico detalhado do ativo.*")
-                
-                # A MÁGICA DA SELEÇÃO: Transformamos a tabela num componente clicável
-                evento_tabela = st.dataframe(
-                    df_styled, 
-                    use_container_width=True,
-                    hide_index=True,
-                    column_config=col_config,
-                    selection_mode="single-row",
-                    on_select="rerun" # Faz a tela reagir imediatamente ao clique
+                # --- 3. SEÇÃO DE FILTROS GLOBAIS ---
+                filtro = st.radio(
+                    "Selecione a visualização:", 
+                    ["Todas", "Renda Variável (Ações/FIIs)", "Renda Fixa"], 
+                    horizontal=True,
+                    label_visibility="collapsed",
+                    key="filtro_tabela"
                 )
-                
-            # ==========================================================
-            # --- NOVO: 5. RAIO-X DO ATIVO SELECIONADO (DRILL-DOWN) ---
-            # ==========================================================
-            linhas_selecionadas = evento_tabela.selection.rows
-            
-            if linhas_selecionadas:
-                st.divider()
-                idx_linha = linhas_selecionadas[0]
-                ativo_clicado = df_exibicao.iloc[idx_linha]['Ativo']
-                classe_clicada = df_exibicao.iloc[idx_linha]['Classe']
-                
-                st.markdown(f"###**{ativo_clicado}**")
-                
-                if classe_clicada == "Renda Variável (Ações/FIIs)":
-                    df_historico_ativo = df_historico[
-                        (df_historico['Classe'] == classe_clicada) & 
-                        (df_historico['Ticker'] == ativo_clicado)
-                    ].copy()
+
+                if filtro == "Todas":
+                    df_exibicao = df_final_frag
+                    coluna_agrupamento = 'Classe' 
                 else:
-                    df_historico_ativo = df_historico[
-                        (df_historico['Classe'] == classe_clicada) & 
-                        (df_historico['Nome_RF'].apply(lambda x: str(x) in ativo_clicado))
-                    ].copy()
+                    df_exibicao = df_final_frag[df_final_frag['Classe'] == filtro]
+                    coluna_agrupamento = 'Ativo'
+
+                # --- 4. SEÇÃO DE GRÁFICOS E TABELA INTERATIVA ---
+                col_grafico, col_tabela = st.columns([1.5, 2.5]) 
+                
+                with col_grafico:
+                    if df_exibicao['Valor_Atual'].sum() > 0:
+                        fig = px.pie(
+                            df_exibicao, values='Valor_Atual', names=coluna_agrupamento,
+                            hole=0.45, color_discrete_sequence=px.colors.sequential.Teal
+                        )
+                        fig.update_traces(textposition='inside', textinfo='percent')
+                        fig.update_layout(
+                            margin=dict(t=10, b=10, l=0, r=0), paper_bgcolor="rgba(0,0,0,0)",
+                            showlegend=True, legend=dict(orientation="h", yanchor="top", y=-0.1, xanchor="center", x=0.5)
+                        )
+                        st.plotly_chart(fig, use_container_width=True)
+                    else:
+                        st.info("Nenhum saldo para exibir neste filtro.")
                     
-                if not df_historico_ativo.empty:
-                    df_historico_ativo['Data'] = pd.to_datetime(df_historico_ativo['Data'])
-                    df_historico_ativo = df_historico_ativo.sort_values('Data')
+                with col_tabela:
+                    col_config = {
+                        "logourl": st.column_config.ImageColumn("Logo"),
+                        "Ativo": st.column_config.TextColumn("Ativo/Nome", width="medium"),
+                        "Qtd_Cotas": st.column_config.NumberColumn("Qtd"),
+                        "Preco_Medio": st.column_config.NumberColumn("PM / Aporte", format="R$ %.2f"),
+                        "Total_Investido": st.column_config.NumberColumn("Investido", format="R$ %.2f"),
+                        "Valor_Atual": st.column_config.NumberColumn("Saldo Atual", format="R$ %.2f"),
+                        "Lucro_Prejuizo_R$": st.column_config.NumberColumn("Retorno (R$)", format="R$ %.2f"),
+                        "Rentabilidade_%": st.column_config.NumberColumn("Rentab.", format="%.2f %%"),
+                        "DY_%": st.column_config.NumberColumn("DY (12m)", format="%.2f %%"),
+                        "Classe": None, "Indexador_RF": None    
+                    }
                     
-                    # Compras são barras para cima (+), Vendas são para baixo (-)
-                    df_historico_ativo['Qtd_Grafico'] = df_historico_ativo.apply(
-                        lambda row: row['Quantidade'] if str(row['Operacao']).upper() in ['COMPRA', 'APLICAÇÃO', 'APLICACAO'] else -row['Quantidade'], 
-                        axis=1
+                    if filtro == "Todas":
+                        col_config["regularMarketPrice"], col_config["Taxa_RF"], col_config["DY_%"] = None, None, None 
+                    elif filtro == "Renda Variável (Ações/FIIs)":
+                        col_config["regularMarketPrice"] = st.column_config.NumberColumn("Cotação", format="R$ %.2f")
+                        col_config["Taxa_RF"] = None
+                    elif filtro == "Renda Fixa":
+                        col_config["regularMarketPrice"], col_config["DY_%"] = None, None
+                        col_config["Taxa_RF"] = st.column_config.NumberColumn("Taxa Contratada", format="%.2f %%")
+
+                    def colorir_linhas(row):
+                        rentab = row['Rentabilidade_%']
+                        if rentab > 0: return ['background-color: rgba(76, 175, 80, 0.15)' for _ in row]
+                        elif rentab < 0: return ['background-color: rgba(244, 67, 54, 0.15)' for _ in row]
+                        return ['' for _ in row]
+
+                    df_styled = df_exibicao.style.apply(colorir_linhas, axis=1)
+                    st.caption("👆 *Dica: Clique em qualquer linha da tabela abaixo para ver o histórico detalhado do ativo.*")
+                    
+                    evento_tabela = st.dataframe(
+                        df_styled, use_container_width=True, hide_index=True, column_config=col_config,
+                        selection_mode="single-row", on_select="rerun" 
                     )
                     
-                    col_graf_hist, col_tab_hist = st.columns([2.5, 1])
+                # --- 5. RAIO-X DO ATIVO SELECIONADO (DRILL-DOWN) ---
+                linhas_selecionadas = evento_tabela.selection.rows
+                
+                if linhas_selecionadas:
+                    st.divider()
+                    idx_linha = linhas_selecionadas[0]
+                    ativo_clicado = df_exibicao.iloc[idx_linha]['Ativo']
+                    classe_clicada = df_exibicao.iloc[idx_linha]['Classe']
                     
-                    with col_graf_hist:
-                        if classe_clicada == "Renda Variável (Ações/FIIs)":
-                            # Busca o histórico de mercado na Brapi
-                            df_cotacoes = get_stock_history(ativo_clicado)
-                            
-                            # Configura o gráfico com Eixo Secundário
-                            fig_hist = make_subplots(specs=[[{"secondary_y": True}]])
-                            
-                            # 1. LINHA DE TENDÊNCIA (Preço no Eixo Principal)
-                            if not df_cotacoes.empty:
-                                fig_hist.add_trace(
-                                    go.Scatter(
-                                        x=df_cotacoes['Data'], y=df_cotacoes['Fechamento'], 
-                                        name='Cotação de Mercado', mode='lines',
-                                        line=dict(color='#1E3A8A', width=2),
-                                        hovertemplate='Data: %{x}<br>Cotação: R$ %{y:.2f}<extra></extra>'
-                                    ),
-                                    secondary_y=False,
-                                )
-                                
-                            # 2. BARRAS DE VOLUME (Aportes no Eixo Secundário Oculto)
-                            compras = df_historico_ativo[df_historico_ativo['Qtd_Grafico'] > 0]
-                            vendas = df_historico_ativo[df_historico_ativo['Qtd_Grafico'] < 0]
-                            
-                            # Usamos 'rgba' para dar uma transparência à barra e não esconder a linha do preço!
-                            if not compras.empty:
-                                fig_hist.add_trace(
-                                    go.Bar(
-                                        x=compras['Data'], y=compras['Qtd_Grafico'], 
-                                        name='Minhas Compras', marker_color='rgba(34, 197, 94, 0.4)',
-                                        hovertemplate='Data: %{x}<br>Comprou: %{y} cotas<extra></extra>'
-                                    ),
-                                    secondary_y=True,
-                                )
-                            if not vendas.empty:
-                                fig_hist.add_trace(
-                                    go.Bar(
-                                        x=vendas['Data'], y=vendas['Qtd_Grafico'], 
-                                        name='Minhas Vendas', marker_color='rgba(239, 68, 68, 0.4)',
-                                        hovertemplate='Data: %{x}<br>Vendeu: %{y} cotas<extra></extra>'
-                                    ),
-                                    secondary_y=True,
-                                )
-                                
-                            # Otimizações de UX e layout
-                            fig_hist.update_layout(
-                                title="Histórico de Cotação vs Meus Aportes",
-                                margin=dict(t=40, b=10, l=0, r=0),
-                                legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-                                hovermode="x unified" # Exibe os dados juntos ao cruzar o mouse!
-                            )
-                            # Eixo Principal (Preço)
-                            fig_hist.update_yaxes(title_text="Cotação (R$)", secondary_y=False)
-                            # Eixo Secundário Oculto (Quantidade)
-                            fig_hist.update_yaxes(showticklabels=False, showgrid=False, secondary_y=True)
-                            
-                            st.plotly_chart(fig_hist, use_container_width=True)
-
-                        else:
-                            # Comportamento Padrão de Barras para Renda Fixa
-                            fig_hist = px.bar(
-                                df_historico_ativo, x='Data', y='Qtd_Grafico', 
-                                color='Operacao', title="Histórico de Aportes Financeiros",
-                                text='Preco_Unitario',
-                                color_discrete_map={'Compra': '#22C55E', 'Aplicação': '#22C55E', 'Venda': '#EF4444', 'Resgate': '#EF4444'}
-                            )
-                            fig_hist.update_traces(texttemplate='R$ %{text:.2f}', textposition='outside')
-                            fig_hist.update_layout(yaxis_title="Quantidade", xaxis_title="")
-                            st.plotly_chart(fig_hist, use_container_width=True)
+                    st.markdown(f"### 🔎 Raio-X: **{ativo_clicado}**")
+                    
+                    if classe_clicada == "Renda Variável (Ações/FIIs)":
+                        df_hist_ativo = df_historico_frag[
+                            (df_historico_frag['Classe'] == classe_clicada) & 
+                            (df_historico_frag['Ticker'] == ativo_clicado)
+                        ].copy()
+                    else:
+                        df_hist_ativo = df_historico_frag[
+                            (df_historico_frag['Classe'] == classe_clicada) & 
+                            (df_historico_frag['Nome_RF'].apply(lambda x: str(x) in ativo_clicado))
+                        ].copy()
                         
-                    with col_tab_hist:
-                        st.markdown("**Extrato de Operações**")
-                        df_extrato = df_historico_ativo[['Data', 'Operacao', 'Quantidade', 'Preco_Unitario']].copy()
-                        df_extrato['Data'] = df_extrato['Data'].dt.strftime('%d/%m/%Y')
-                        # Renomeando coluna para ficar mais claro
-                        df_extrato.rename(columns={'Preco_Unitario': 'Preço / Taxa'}, inplace=True)
-                        st.dataframe(df_extrato, hide_index=True, use_container_width=True)
+                    if not df_hist_ativo.empty:
+                        df_hist_ativo['Data'] = pd.to_datetime(df_hist_ativo['Data'])
+                        df_hist_ativo = df_hist_ativo.sort_values('Data')
+                        df_hist_ativo['Qtd_Grafico'] = df_hist_ativo.apply(
+                            lambda row: row['Quantidade'] if str(row['Operacao']).upper() in ['COMPRA', 'APLICAÇÃO', 'APLICACAO'] else -row['Quantidade'], axis=1
+                        )
+                        
+                        col_graf_hist, col_tab_hist = st.columns([2.5, 1])
+                        
+                        with col_graf_hist:
+                            if classe_clicada == "Renda Variável (Ações/FIIs)":
+                                df_cotacoes = get_stock_history(ativo_clicado)
+                                fig_hist = make_subplots(specs=[[{"secondary_y": True}]])
+                                
+                                if not df_cotacoes.empty:
+                                    fig_hist.add_trace(go.Scatter(x=df_cotacoes['Data'], y=df_cotacoes['Fechamento'], name='Cotação de Mercado', mode='lines', line=dict(color='#1E3A8A', width=2), hovertemplate='Data: %{x}<br>Cotação: R$ %{y:.2f}<extra></extra>'), secondary_y=False)
+                                    
+                                compras = df_hist_ativo[df_hist_ativo['Qtd_Grafico'] > 0]
+                                vendas = df_hist_ativo[df_hist_ativo['Qtd_Grafico'] < 0]
+                                
+                                if not compras.empty: fig_hist.add_trace(go.Bar(x=compras['Data'], y=compras['Qtd_Grafico'], name='Minhas Compras', marker_color='rgba(34, 197, 94, 0.4)', hovertemplate='Data: %{x}<br>Comprou: %{y} cotas<extra></extra>'), secondary_y=True)
+                                if not vendas.empty: fig_hist.add_trace(go.Bar(x=vendas['Data'], y=vendas['Qtd_Grafico'], name='Minhas Vendas', marker_color='rgba(239, 68, 68, 0.4)', hovertemplate='Data: %{x}<br>Vendeu: %{y} cotas<extra></extra>'), secondary_y=True)
+                                    
+                                fig_hist.update_layout(title="Histórico de Cotação vs Meus Aportes", margin=dict(t=40, b=10, l=0, r=0), legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1), hovermode="x unified")
+                                fig_hist.update_yaxes(title_text="Cotação (R$)", secondary_y=False)
+                                fig_hist.update_yaxes(showticklabels=False, showgrid=False, secondary_y=True)
+                                st.plotly_chart(fig_hist, use_container_width=True)
+                            else:
+                                fig_hist = px.bar(df_hist_ativo, x='Data', y='Qtd_Grafico', color='Operacao', title="Histórico de Aportes Financeiros", text='Preco_Unitario', color_discrete_map={'Compra': '#22C55E', 'Aplicação': '#22C55E', 'Venda': '#EF4444', 'Resgate': '#EF4444'})
+                                fig_hist.update_traces(texttemplate='R$ %{text:.2f}', textposition='outside')
+                                fig_hist.update_layout(yaxis_title="Quantidade", xaxis_title="")
+                                st.plotly_chart(fig_hist, use_container_width=True)
+                            
+                        with col_tab_hist:
+                            st.markdown("**Extrato de Operações**")
+                            df_extrato = df_hist_ativo[['Data', 'Operacao', 'Quantidade', 'Preco_Unitario']].copy()
+                            df_extrato['Data'] = df_extrato['Data'].dt.strftime('%d/%m/%Y')
+                            df_extrato.rename(columns={'Preco_Unitario': 'Preço / Taxa'}, inplace=True)
+                            st.dataframe(df_extrato, hide_index=True, use_container_width=True)
+
+            # Chama o fragmento passando os dados!
+            painel_interativo_ativos(df_final, df_historico)
                 
         except requests.exceptions.HTTPError as e:
             st.error("🚨 Ocorreu um erro ao consultar a API da B3. Verifique a conexão.")

@@ -4,3 +4,7 @@ requests
 python-dotenv
 streamlit
 plotly
+
+# API para agente de IA, estou usando o Gemini.
+google-genai
+tabulate
